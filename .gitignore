@@ -38,8 +38,11 @@ local.properties
 # node.js
 #
 node_modules/
+node_modules.corrupt_backup/
+package-lock.corrupt.json
 npm-debug.log
 yarn-error.log
+package-lock.json
 
 # fastlane
 #
@@ -62,6 +65,7 @@ yarn-error.log
 
 # Temporary files created by Metro to check the health of the file watcher
 .metro-health-check*
+metro.log
 
 # testing
 /coverage

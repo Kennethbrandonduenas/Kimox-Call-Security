@@ -57,7 +57,7 @@ react {
 /**
  * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
  */
-def enableProguardInReleaseBuilds = false
+def enableProguardInReleaseBuilds = true
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -92,15 +92,28 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            if (project.hasProperty("KIMOX_UPLOAD_STORE_FILE")) {
+                storeFile file(KIMOX_UPLOAD_STORE_FILE)
+                storePassword KIMOX_UPLOAD_STORE_PASSWORD
+                keyAlias KIMOX_UPLOAD_KEY_ALIAS
+                keyPassword KIMOX_UPLOAD_KEY_PASSWORD
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
-        release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
+        standalone {
+            initWith debug
+            debuggable false
             signingConfig signingConfigs.debug
+            matchingFallbacks = ["debug"]
+            manifestPlaceholders = [usesCleartextTraffic: "false"]
+        }
+        release {
+            signingConfig project.hasProperty("KIMOX_UPLOAD_STORE_FILE") ? signingConfigs.release : null
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
@@ -108,8 +121,10 @@ android {
 }
 
 dependencies {
+    implementation("androidx.core:core-ktx:1.13.1")
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    testImplementation("junit:junit:4.13.2")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
