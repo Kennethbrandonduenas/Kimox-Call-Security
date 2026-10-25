@@ -1,7 +1,6 @@
 package com.kimoxcallsecurity
 
 import android.Manifest
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -27,10 +26,9 @@ class KimoxSecurityAuditWorker(context: Context, parameters: WorkerParameters) :
     private fun notifyReview() {
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) manager.createNotificationChannel(NotificationChannel(CHANNEL, "Auditorías de seguridad", NotificationManager.IMPORTANCE_DEFAULT))
         val launch = applicationContext.packageManager.getLaunchIntentForPackage(applicationContext.packageName) ?: return
         val pending = PendingIntent.getActivity(applicationContext, 8401, launch, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        manager.notify(8401, NotificationCompat.Builder(applicationContext, CHANNEL)
+        manager.notify(8401, NotificationCompat.Builder(applicationContext, KimoxBackgroundManager.SECURITY_AUDIT_CHANNEL)
             .setSmallIcon(R.mipmap.ic_launcher).setContentTitle("Revisión de seguridad pendiente")
             .setContentText("Abre Kimox para analizar cambios recientes del dispositivo.")
             .setContentIntent(pending).setAutoCancel(true).build())
@@ -38,8 +36,6 @@ class KimoxSecurityAuditWorker(context: Context, parameters: WorkerParameters) :
 
     companion object {
         private const val UNIQUE_WORK = "kimox_periodic_security_audit"
-        private const val CHANNEL = "kimox_security_audits"
-
         fun configure(context: Context, enabled: Boolean) {
             val workManager = WorkManager.getInstance(context)
             if (!enabled) {

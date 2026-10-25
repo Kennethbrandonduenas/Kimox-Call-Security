@@ -14,7 +14,6 @@ import android.telephony.TelephonyManager
 import androidx.core.app.NotificationCompat
 
 object KimoxPostCallPrompt {
-    private const val CHANNEL_ID = "kimox_post_call"
     private const val NOTIFICATION_ID = 5102
     private const val CANDIDATE_NUMBER = "post_call_candidate_number"
     private const val CANDIDATE_TIME = "post_call_candidate_time"
@@ -45,14 +44,7 @@ object KimoxPostCallPrompt {
         preferences.putString(LAST_PROMPT_TIME, now.toString())
 
         val manager = context.getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            manager.createNotificationChannel(NotificationChannel(
-                CHANNEL_ID,
-                "Decisiones después de llamadas",
-                NotificationManager.IMPORTANCE_HIGH,
-            ))
-        }
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(context, KimoxBackgroundManager.POST_CALL_CHANNEL)
             .setSmallIcon(android.R.drawable.ic_menu_call)
             .setContentTitle("¿Qué deseas hacer con este número?")
             .setContentText(number)

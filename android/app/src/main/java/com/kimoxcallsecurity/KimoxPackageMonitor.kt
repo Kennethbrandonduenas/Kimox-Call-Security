@@ -36,13 +36,10 @@ class KimoxPackageMonitor : BroadcastReceiver() {
     private fun notifyReview(context: Context, packageName: String, event: String) {
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val manager = context.getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Cambios de aplicaciones", NotificationManager.IMPORTANCE_DEFAULT))
-        }
         val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
         val pending = PendingIntent.getActivity(context, 8301, launch, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val verb = if (event == "installed") "instaló" else if (event == "updated") "actualizó" else "eliminó"
-        manager.notify(packageName.hashCode(), NotificationCompat.Builder(context, CHANNEL_ID)
+        manager.notify(packageName.hashCode(), NotificationCompat.Builder(context, KimoxBackgroundManager.APP_CHANGES_CHANNEL)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("Aplicación $verb")
             .setContentText("Abre Kimox para revisar $packageName")
@@ -53,7 +50,6 @@ class KimoxPackageMonitor : BroadcastReceiver() {
 
     companion object {
         const val PACKAGE_CHANGES = "malware_package_changes"
-        private const val CHANNEL_ID = "kimox_app_changes"
         private const val MAX_EVENTS = 30
     }
 }

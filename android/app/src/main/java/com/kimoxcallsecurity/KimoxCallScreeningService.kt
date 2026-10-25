@@ -1,7 +1,6 @@
 package com.kimoxcallsecurity
 
 import android.Manifest
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.pm.PackageManager
 import android.os.Build
@@ -107,11 +106,8 @@ class KimoxCallScreeningService : CallScreeningService() {
 
     private fun notifyScreened(number: String, action: String) {
         val manager = getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Protección de llamadas", NotificationManager.IMPORTANCE_DEFAULT))
-        }
         val verb = if (action == "silence") "silenciada" else "bloqueada"
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(this, KimoxBackgroundManager.CALL_CHANNEL)
             .setSmallIcon(android.R.drawable.ic_lock_lock)
             .setContentTitle("Llamada $verb")
             .setContentText(number)
@@ -135,7 +131,6 @@ class KimoxCallScreeningService : CallScreeningService() {
     }
 
     companion object {
-        private const val CHANNEL_ID = "kimox_calls"
         private const val MAX_HISTORY = 200
     }
 }

@@ -178,6 +178,7 @@ class KimoxSecurityModule(
     @ReactMethod
     fun setProtectionEnabled(enabled: Boolean) {
         preferences.putBoolean(PROTECTION_ENABLED, enabled)
+        KimoxBackgroundManager.initialize(context)
     }
 
     @ReactMethod
@@ -204,6 +205,9 @@ class KimoxSecurityModule(
             putBoolean("overlay", Settings.canDrawOverlays(context))
             putBoolean("accessibility", accessibilityManager.isEnabled)
             putBoolean("batteryUnrestricted", powerManager.isIgnoringBatteryOptimizations(context.packageName))
+            putBoolean("backgroundReady", preferences.getBoolean(PROTECTION_ENABLED, true))
+            putBoolean("periodicAudit", preferences.getBoolean(KimoxBackgroundManager.PERIODIC_AUDIT_ENABLED, false) &&
+                preferences.getBoolean(MALWARE_CONSENT, false))
         })
     }
 
@@ -291,17 +295,30 @@ class KimoxSecurityModule(
     fun getMalwareConsent(promise: Promise) = promise.resolve(preferences.getBoolean(MALWARE_CONSENT, false))
 
     @ReactMethod
-    fun setMalwareConsent(accepted: Boolean) = preferences.putBoolean(MALWARE_CONSENT, accepted)
+    fun setMalwareConsent(accepted: Boolean) {
+        preferences.putBoolean(MALWARE_CONSENT, accepted)
+        if (!accepted) {
+            preferences.putBoolean(KimoxBackgroundManager.PERIODIC_AUDIT_ENABLED, false)
+            KimoxSecurityAuditWorker.configure(context, false)
+        }
+    }
 
     @ReactMethod
     fun clearMalwareData() {
         listOf(LAST_SCANNED_PACKAGES, LAST_MALWARE_SCAN, TRUSTED_APPS, MALWARE_SCAN_HISTORY, APP_AUDIT_SNAPSHOTS, KimoxPackageMonitor.PACKAGE_CHANGES).forEach(preferences::remove)
         preferences.putBoolean(MALWARE_CONSENT, false)
+        preferences.putBoolean(KimoxBackgroundManager.PERIODIC_AUDIT_ENABLED, false)
         KimoxSecurityAuditWorker.configure(context, false)
     }
 
     @ReactMethod
-    fun configurePeriodicAudit(enabled: Boolean) = KimoxSecurityAuditWorker.configure(context, enabled)
+    fun configurePeriodicAudit(enabled: Boolean) {
+        preferences.putBoolean(KimoxBackgroundManager.PERIODIC_AUDIT_ENABLED, enabled)
+        KimoxSecurityAuditWorker.configure(
+            context,
+            enabled && preferences.getBoolean(MALWARE_CONSENT, false),
+        )
+    }
 
     @ReactMethod
     fun selectAndScanApk(promise: Promise) {

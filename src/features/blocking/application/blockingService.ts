@@ -20,6 +20,8 @@ export type DiagnosticStatus = {
   overlay: boolean;
   accessibility: boolean;
   batteryUnrestricted: boolean;
+  backgroundReady: boolean;
+  periodicAudit: boolean;
 };
 
 export type DeviceCountry = {
@@ -105,6 +107,8 @@ export const getDiagnostics = async (): Promise<DiagnosticStatus> =>
     overlay: false,
     accessibility: false,
     batteryUnrestricted: false,
+    backgroundReady: false,
+    periodicAudit: false,
   };
 export const detectDeviceCountry = async (): Promise<DeviceCountry> =>
   (await native.detectDeviceCountry?.()) ?? {

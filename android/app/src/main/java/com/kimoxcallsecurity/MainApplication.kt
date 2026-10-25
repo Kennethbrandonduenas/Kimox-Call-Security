@@ -33,6 +33,7 @@ class MainApplication : Application(), ReactApplication {
       KimoxDiagnostics.record(this, "INFO", "RECOVERY_PROCESS_READY")
       return
     }
+    KimoxBackgroundManager.initialize(this)
     try {
       KimoxDiagnostics.record(this, "INFO", "REACT_NATIVE_INITIALIZING")
       loadReactNative(this)

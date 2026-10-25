@@ -8,7 +8,7 @@ import {
 } from '../../blocking/application/blockingService';
 import {exportRules, importRules} from '../../rules-manager/application/RulesBackupService';
 
-const emptyDiagnostics: DiagnosticStatus = {callScreening: false, notifications: false, contacts: false, overlay: false, accessibility: false, batteryUnrestricted: false};
+const emptyDiagnostics: DiagnosticStatus = {callScreening: false, notifications: false, contacts: false, overlay: false, accessibility: false, batteryUnrestricted: false, backgroundReady: false, periodicAudit: false};
 
 export function SettingsScreen() {
   const [diagnostics, setDiagnostics] = useState(emptyDiagnostics);
@@ -23,10 +23,12 @@ export function SettingsScreen() {
     <Diagnostic title="Filtrado de llamadas" enabled={diagnostics.callScreening} onPress={requestCallScreeningRole}/>
     <Diagnostic title="Acceso a contactos" enabled={diagnostics.contacts} onPress={requestCallScreeningRole}/>
     <Diagnostic title="Notificaciones" enabled={diagnostics.notifications} onPress={requestCallScreeningRole}/>
+    <AppStatusRow title="Protección en segundo plano" status={diagnostics.backgroundReady ? 'Preparada' : 'Pausada'} tone={diagnostics.backgroundReady ? 'success' : 'danger'} />
     <Diagnostic title="Sin restricción de batería" enabled={diagnostics.batteryUnrestricted} onPress={openBatterySettings}/>
     <Diagnostic title="Superposición autorizada" enabled={diagnostics.overlay} onPress={openOverlaySettings}/>
     <AppStatusRow title="Servicio de accesibilidad" status={diagnostics.accessibility ? 'Activo' : 'Inactivo'} tone={diagnostics.accessibility ? 'warning' : 'success'} onPress={openAccessibilitySettings}/>
     <AppButton title="Configurar inicio automático (Huawei)" variant="secondary" onPress={openManufacturerBatterySettings}/>
+    <AppStatusRow title="Auditoría periódica" status={diagnostics.periodicAudit ? 'Activa' : 'Opcional'} tone={diagnostics.periodicAudit ? 'success' : 'warning'} />
     <AppButton title="Actualizar diagnóstico" variant="secondary" onPress={refresh} style={s.gap}/>
 
     <AppSectionHeader title="Respaldo local" description="Usa una contraseña de 8 caracteres o más para cifrarlo. Sin contraseña será JSON legible." />
