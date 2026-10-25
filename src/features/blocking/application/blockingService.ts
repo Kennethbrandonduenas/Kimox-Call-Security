@@ -22,6 +22,9 @@ export type DiagnosticStatus = {
   batteryUnrestricted: boolean;
   backgroundReady: boolean;
   periodicAudit: boolean;
+  legacyCallReceiver: boolean;
+  lastPhoneEventAt: number;
+  lastCallFilterAt: number;
 };
 
 export type DeviceCountry = {
@@ -109,6 +112,9 @@ export const getDiagnostics = async (): Promise<DiagnosticStatus> =>
     batteryUnrestricted: false,
     backgroundReady: false,
     periodicAudit: false,
+    legacyCallReceiver: false,
+    lastPhoneEventAt: 0,
+    lastCallFilterAt: 0,
   };
 export const detectDeviceCountry = async (): Promise<DeviceCountry> =>
   (await native.detectDeviceCountry?.()) ?? {

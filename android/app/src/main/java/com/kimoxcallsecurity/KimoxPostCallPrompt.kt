@@ -77,26 +77,41 @@ object KimoxPostCallPrompt {
 
 class KimoxPhoneStateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        when (intent.getStringExtra(TelephonyManager.EXTRA_STATE)) {
+        val state = intent.getStringExtra(TelephonyManager.EXTRA_STATE)
+        val appContext = context.applicationContext
+        val preferences = SecurePreferences(appContext)
+        preferences.putString(KimoxSecurityModule.LAST_PHONE_EVENT_AT, System.currentTimeMillis().toString())
+        KimoxDiagnostics.record(
+            appContext,
+            "INFO",
+            "PHONE_STATE_RECEIVED",
+            "state=$state; hasNumber=${intent.hasExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)}",
+        )
+        when (state) {
             TelephonyManager.EXTRA_STATE_RINGING -> if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
                 val number = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
                 if (!number.isNullOrBlank()) {
                     generation++
                     lastNumberAt = SystemClock.elapsedRealtime()
-                    KimoxLegacyCallHandler.handleRinging(context.applicationContext, number)
+                    KimoxLegacyCallHandler.handleRinging(appContext, number)
                 } else {
                     val token = ++generation
+                    val pendingResult = goAsync()
                     handler.postDelayed({
-                        val recentlyReceivedNumber = SystemClock.elapsedRealtime() - lastNumberAt < 2_000
-                        if (token == generation && !recentlyReceivedNumber) {
-                            KimoxLegacyCallHandler.handleRinging(context.applicationContext, null)
+                        try {
+                            val recentlyReceivedNumber = SystemClock.elapsedRealtime() - lastNumberAt < 2_000
+                            if (token == generation && !recentlyReceivedNumber) {
+                                KimoxLegacyCallHandler.handleRinging(appContext, null)
+                            }
+                        } finally {
+                            pendingResult.finish()
                         }
                     }, 500)
                 }
             }
             TelephonyManager.EXTRA_STATE_IDLE -> {
                 generation++
-                KimoxPostCallPrompt.showIfPending(context)
+                KimoxPostCallPrompt.showIfPending(appContext)
             }
         }
     }

@@ -192,6 +192,10 @@ class KimoxSecurityModule(
             val manager = context.getSystemService(RoleManager::class.java)
             manager.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING) && manager.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)
         } else legacyCallPermissionsGranted()
+        val legacyReceiverEnabled = context.packageManager.getReceiverInfo(
+            ComponentName(context, KimoxPhoneStateReceiver::class.java),
+            PackageManager.GET_META_DATA,
+        ).enabled
         val notificationEnabled = if (Build.VERSION.SDK_INT >= 33) {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         } else context.getSystemService(NotificationManager::class.java).areNotificationsEnabled()
@@ -200,6 +204,7 @@ class KimoxSecurityModule(
         val powerManager = context.getSystemService(PowerManager::class.java)
         promise.resolve(Arguments.createMap().apply {
             putBoolean("callScreening", roleEnabled)
+            putBoolean("legacyCallReceiver", legacyReceiverEnabled)
             putBoolean("notifications", notificationEnabled)
             putBoolean("contacts", contactsEnabled)
             putBoolean("overlay", Settings.canDrawOverlays(context))
@@ -208,6 +213,8 @@ class KimoxSecurityModule(
             putBoolean("backgroundReady", preferences.getBoolean(PROTECTION_ENABLED, true))
             putBoolean("periodicAudit", preferences.getBoolean(KimoxBackgroundManager.PERIODIC_AUDIT_ENABLED, false) &&
                 preferences.getBoolean(MALWARE_CONSENT, false))
+            putDouble("lastPhoneEventAt", preferences.getString(LAST_PHONE_EVENT_AT, "0")?.toDoubleOrNull() ?: 0.0)
+            putDouble("lastCallFilterAt", preferences.getString(LAST_CALL_FILTER_AT, "0")?.toDoubleOrNull() ?: 0.0)
         })
     }
 
@@ -249,7 +256,20 @@ class KimoxSecurityModule(
     fun openOverlaySettings() = openSettings(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")))
 
     @ReactMethod
-    fun openBatterySettings() = openSettings(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+    fun openBatterySettings() {
+        val powerManager = context.getSystemService(PowerManager::class.java)
+        if (!powerManager.isIgnoringBatteryOptimizations(context.packageName)) {
+            val request = Intent(
+                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                Uri.parse("package:${context.packageName}"),
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            runCatching { context.startActivity(request) }.getOrElse {
+                openSettings(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            }
+            return
+        }
+        openSettings(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+    }
 
     @ReactMethod
     fun openManufacturerBatterySettings() {
@@ -688,6 +708,8 @@ class KimoxSecurityModule(
         const val POST_CALL_PROMPT_ENABLED = "post_call_prompt_enabled"
         const val SCREENING_ACTION = "screening_action"
         const val NOTIFICATIONS_ENABLED = "notifications_enabled"
+        const val LAST_PHONE_EVENT_AT = "last_phone_event_at"
+        const val LAST_CALL_FILTER_AT = "last_call_filter_at"
         const val HIDE_NOTIFICATION_NUMBERS = "hide_notification_numbers"
         const val HISTORY_RETENTION_DAYS = "history_retention_days"
         const val PROTECTION_ENABLED = "protection_enabled"

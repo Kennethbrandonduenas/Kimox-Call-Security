@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Necesario para que el auditor local pueda revisar las apps instaladas en Android 11+. -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 

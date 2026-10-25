@@ -8,7 +8,7 @@ import {
 } from '../../blocking/application/blockingService';
 import {exportRules, importRules} from '../../rules-manager/application/RulesBackupService';
 
-const emptyDiagnostics: DiagnosticStatus = {callScreening: false, notifications: false, contacts: false, overlay: false, accessibility: false, batteryUnrestricted: false, backgroundReady: false, periodicAudit: false};
+const emptyDiagnostics: DiagnosticStatus = {callScreening: false, notifications: false, contacts: false, overlay: false, accessibility: false, batteryUnrestricted: false, backgroundReady: false, periodicAudit: false, legacyCallReceiver: false, lastPhoneEventAt: 0, lastCallFilterAt: 0};
 
 export function SettingsScreen() {
   const [diagnostics, setDiagnostics] = useState(emptyDiagnostics);
@@ -21,6 +21,8 @@ export function SettingsScreen() {
   return <AppScreen>
     <AppPageHeader title="Ajustes y diagnóstico" subtitle="Comprueba que Android permita a Kimox proteger tus llamadas." />
     <Diagnostic title="Filtrado de llamadas" enabled={diagnostics.callScreening} onPress={requestCallScreeningRole}/>
+    <AppStatusRow title="Señal telefónica detectada" status={lastActivity(diagnostics.lastPhoneEventAt)} tone={diagnostics.lastPhoneEventAt ? 'success' : 'warning'} />
+    <AppStatusRow title="Última evaluación de llamada" status={lastActivity(diagnostics.lastCallFilterAt)} tone={diagnostics.lastCallFilterAt ? 'success' : 'warning'} />
     <Diagnostic title="Acceso a contactos" enabled={diagnostics.contacts} onPress={requestCallScreeningRole}/>
     <Diagnostic title="Notificaciones" enabled={diagnostics.notifications} onPress={requestCallScreeningRole}/>
     <AppStatusRow title="Protección en segundo plano" status={diagnostics.backgroundReady ? 'Preparada' : 'Pausada'} tone={diagnostics.backgroundReady ? 'success' : 'danger'} />
@@ -44,4 +46,5 @@ export function SettingsScreen() {
   </AppScreen>;
 }
 function Diagnostic({title, enabled, onPress}: {title: string; enabled: boolean; onPress: () => void}) {return <AppStatusRow title={title} status={enabled ? 'Correcto' : 'Requiere atención'} tone={enabled ? 'success' : 'danger'} onPress={onPress}/>;}
+function lastActivity(timestamp: number) {return timestamp ? new Date(timestamp).toLocaleString() : 'Aún no recibida';}
 const s = StyleSheet.create({gap: {marginTop: 10}});

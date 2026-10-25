@@ -10,8 +10,14 @@ import androidx.core.content.ContextCompat
 
 object KimoxLegacyCallHandler {
     fun handleRinging(context: Context, rawNumber: String?) {
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P || !hasPermissions(context)) return
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) return
+        if (!hasPermissions(context)) {
+            KimoxDiagnostics.record(context, "WARN", "LEGACY_CALL_SKIPPED", "missingPhonePermissions=true")
+            return
+        }
         val preferences = SecurePreferences(context)
+        preferences.putString(KimoxSecurityModule.LAST_CALL_FILTER_AT, System.currentTimeMillis().toString())
+        KimoxDiagnostics.record(context, "INFO", "LEGACY_CALL_EVALUATING", "hasNumber=${!rawNumber.isNullOrBlank()}")
         if (!preferences.getBoolean(KimoxSecurityModule.PROTECTION_ENABLED, true)) return
         val number = rawNumber?.filter(Char::isDigit)?.takeIf { it.isNotEmpty() }
         val whitelist = preferences.getStringSet(KimoxSecurityModule.WHITELIST_NUMBERS)
