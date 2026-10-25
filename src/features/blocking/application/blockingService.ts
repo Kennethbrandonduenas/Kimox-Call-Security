@@ -22,6 +22,13 @@ export type DiagnosticStatus = {
   batteryUnrestricted: boolean;
 };
 
+export type DeviceCountry = {
+  iso: string;
+  name: string;
+  dialingCode: string;
+  source: 'SIM' | 'RED_MOVIL' | 'REGION_ANDROID' | 'PREDETERMINADO';
+};
+
 type KimoxNativeModule = {
   setBlockedNumbers?: (numbers: string[]) => void;
   getBlockedNumbers?: () => Promise<string[]>;
@@ -35,10 +42,12 @@ type KimoxNativeModule = {
   setProtectionEnabled?: (enabled: boolean) => void;
   getProtectionEnabled?: () => Promise<boolean>;
   getDiagnostics?: () => Promise<DiagnosticStatus>;
+  detectDeviceCountry?: () => Promise<DeviceCountry>;
   openAppSettings?: () => void;
   openAccessibilitySettings?: () => void;
   openOverlaySettings?: () => void;
   openBatterySettings?: () => void;
+  openManufacturerBatterySettings?: () => void;
   encryptBackup?: (content: string, password: string) => Promise<string>;
   decryptBackup?: (content: string, password: string) => Promise<string>;
 };
@@ -97,6 +106,13 @@ export const getDiagnostics = async (): Promise<DiagnosticStatus> =>
     accessibility: false,
     batteryUnrestricted: false,
   };
+export const detectDeviceCountry = async (): Promise<DeviceCountry> =>
+  (await native.detectDeviceCountry?.()) ?? {
+    iso: 'PE',
+    name: 'Perú',
+    dialingCode: '51',
+    source: 'PREDETERMINADO',
+  };
 export const clearHistory = () => native.clearHistory?.();
 export const clearAllData = () => native.clearAllData?.();
 export const openAppSettings = () => native.openAppSettings?.();
@@ -104,6 +120,7 @@ export const openAccessibilitySettings = () =>
   native.openAccessibilitySettings?.();
 export const openOverlaySettings = () => native.openOverlaySettings?.();
 export const openBatterySettings = () => native.openBatterySettings?.();
+export const openManufacturerBatterySettings = () => native.openManufacturerBatterySettings?.();
 export async function encryptBackup(content: string, password: string) {
   if (!native.encryptBackup) throw new Error('El cifrado de respaldos requiere Android.');
   return native.encryptBackup(content, password);

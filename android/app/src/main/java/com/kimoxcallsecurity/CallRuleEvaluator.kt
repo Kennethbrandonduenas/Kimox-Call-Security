@@ -10,6 +10,9 @@ data class CallRuleInput(
     val blockedCountries: List<String>,
     val blockPrivate: Boolean,
     val blockUnknown: Boolean,
+    val blockInternational: Boolean,
+    val allowInternationalContacts: Boolean,
+    val isForeignInternational: Boolean,
 )
 
 object CallRuleEvaluator {
@@ -21,6 +24,8 @@ object CallRuleEvaluator {
             number != null && number in input.blockedNumbers -> "Número bloqueado"
             number != null && input.blockedPrefixes.any(number::startsWith) -> "Prefijo bloqueado"
             number != null && input.blockedCountries.any(number::startsWith) -> "País bloqueado"
+            input.blockInternational && input.isForeignInternational &&
+                !(input.allowInternationalContacts && input.isKnownContact == true) -> "Llamada internacional"
             number != null && input.blockUnknown && input.isKnownContact == false -> "Número desconocido"
             else -> null
         }

@@ -35,21 +35,39 @@ class KimoxCallScreeningService : CallScreeningService() {
         val blockedPrefixes = preferences.getStringSet(KimoxSecurityModule.BLOCKED_PREFIXES).map { it.normalizePhoneNumber() }.filter { it.isNotEmpty() }
         val blockedCountries = preferences.getStringSet(KimoxSecurityModule.BLOCKED_COUNTRIES).map { it.normalizePhoneNumber() }.filter { it.isNotEmpty() }
         val blockUnknown = preferences.getBoolean(KimoxSecurityModule.BLOCK_UNKNOWN, false)
-        val blockPrivate = preferences.getBoolean(KimoxSecurityModule.BLOCK_PRIVATE, false)
+        val blockPrivate = preferences.getBoolean(KimoxSecurityModule.BLOCK_PRIVATE, true)
+        val blockInternational = preferences.getBoolean(KimoxSecurityModule.BLOCK_INTERNATIONAL, true)
+        val allowInternationalContacts = preferences.getBoolean(KimoxSecurityModule.ALLOW_INTERNATIONAL_CONTACTS, true)
+        val detectedCountryCode = DeviceCountryDetector.detect(this).dialingCode
+        val localCountryCode = preferences.getString(KimoxSecurityModule.LOCAL_COUNTRY_CODE, detectedCountryCode)
+            ?.filter(Char::isDigit).orEmpty()
+        val trimmedNumber = rawNumber?.trim().orEmpty()
+        val explicitlyInternational = trimmedNumber.startsWith("+") || trimmedNumber.startsWith("00")
+        val internationalDigits = if (trimmedNumber.startsWith("00")) number?.removePrefix("00") else number
+        val isForeignInternational = explicitlyInternational && localCountryCode.isNotEmpty() &&
+            internationalDigits?.startsWith(localCountryCode) == false
+        val isKnownContact = number?.let(::isContact)
 
         val reason = CallRuleEvaluator.evaluate(CallRuleInput(
             number = number,
             isPrivate = isPrivate,
-            isKnownContact = number?.let(::isContact),
+            isKnownContact = isKnownContact,
             whitelist = whitelist,
             blockedNumbers = blockedNumbers,
             blockedPrefixes = blockedPrefixes,
             blockedCountries = blockedCountries,
             blockPrivate = blockPrivate,
             blockUnknown = blockUnknown,
+            blockInternational = blockInternational,
+            allowInternationalContacts = allowInternationalContacts,
+            isForeignInternational = isForeignInternational,
         ))
 
         if (reason == null) {
+            if (number != null && isKnownContact == false &&
+                preferences.getBoolean(KimoxSecurityModule.POST_CALL_PROMPT_ENABLED, true)) {
+                KimoxPostCallPrompt.rememberCandidate(this, rawNumber ?: number)
+            }
             respondToCall(callDetails, CallResponse.Builder().build())
             return
         }

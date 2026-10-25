@@ -34,6 +34,8 @@ class SecurePreferences(context: Context) {
     fun putBoolean(key: String, value: Boolean) = putSecure(key, value.toString())
     fun getInt(key: String, fallback: Int) = secureValue(key)?.toIntOrNull() ?: migrateInt(key, fallback)
     fun putInt(key: String, value: Int) = putSecure(key, value.toString())
+    fun getLong(key: String, fallback: Long) = secureValue(key)?.toLongOrNull() ?: fallback
+    fun putLong(key: String, value: Long) = putSecure(key, value.toString())
     fun getString(key: String, fallback: String): String = secureValue(key) ?: migrateString(key, fallback)
     fun putString(key: String, value: String) = putSecure(key, value)
     fun remove(key: String) { prefs.edit().remove(secureKey(key)).remove(key).apply() }
@@ -94,5 +96,14 @@ class SecurePreferences(context: Context) {
         private const val KEY_ALIAS = "kimox_local_data_v1"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val IV_SIZE = 12
+
+        fun resetEncryptionKey() {
+            runCatching {
+                KeyStore.getInstance(KEYSTORE).apply {
+                    load(null)
+                    if (containsAlias(KEY_ALIAS)) deleteEntry(KEY_ALIAS)
+                }
+            }
+        }
     }
 }

@@ -1,0 +1,83 @@
+package com.kimoxcallsecurity
+
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.ContactsContract
+import android.telecom.TelecomManager
+import androidx.core.content.ContextCompat
+
+object KimoxLegacyCallHandler {
+    fun handleRinging(context: Context, rawNumber: String?) {
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P || !hasPermissions(context)) return
+        val preferences = SecurePreferences(context)
+        if (!preferences.getBoolean(KimoxSecurityModule.PROTECTION_ENABLED, true)) return
+        val number = rawNumber?.filter(Char::isDigit)?.takeIf { it.isNotEmpty() }
+        val whitelist = preferences.getStringSet(KimoxSecurityModule.WHITELIST_NUMBERS)
+            .map { it.filter(Char::isDigit) }.toSet()
+        if (number != null && number in whitelist) return
+        val isKnownContact = number?.let { isContact(context, it) }
+        val countryCode = preferences.getString(
+            KimoxSecurityModule.LOCAL_COUNTRY_CODE,
+            DeviceCountryDetector.detect(context).dialingCode.ifEmpty { "51" },
+        )?.filter(Char::isDigit).orEmpty()
+        val trimmed = rawNumber?.trim().orEmpty()
+        val international = trimmed.startsWith("+") || trimmed.startsWith("00")
+        val internationalDigits = if (trimmed.startsWith("00")) number?.removePrefix("00") else number
+        val reason = CallRuleEvaluator.evaluate(CallRuleInput(
+            number = number,
+            isPrivate = number == null,
+            isKnownContact = isKnownContact,
+            whitelist = whitelist,
+            blockedNumbers = preferences.getStringSet(KimoxSecurityModule.BLOCKED_NUMBERS)
+                .map { it.filter(Char::isDigit) }.toSet(),
+            blockedPrefixes = preferences.getStringSet(KimoxSecurityModule.BLOCKED_PREFIXES)
+                .map { it.filter(Char::isDigit) }.filter { it.isNotEmpty() },
+            blockedCountries = preferences.getStringSet(KimoxSecurityModule.BLOCKED_COUNTRIES)
+                .map { it.filter(Char::isDigit) }.filter { it.isNotEmpty() },
+            blockPrivate = preferences.getBoolean(KimoxSecurityModule.BLOCK_PRIVATE, true),
+            blockUnknown = preferences.getBoolean(KimoxSecurityModule.BLOCK_UNKNOWN, false),
+            blockInternational = preferences.getBoolean(KimoxSecurityModule.BLOCK_INTERNATIONAL, true),
+            allowInternationalContacts = preferences.getBoolean(KimoxSecurityModule.ALLOW_INTERNATIONAL_CONTACTS, true),
+            isForeignInternational = international && countryCode.isNotEmpty() &&
+                internationalDigits?.startsWith(countryCode) == false,
+        ))
+        if (reason == null) {
+            if (number != null && isKnownContact == false &&
+                preferences.getBoolean(KimoxSecurityModule.POST_CALL_PROMPT_ENABLED, true)) {
+                KimoxPostCallPrompt.rememberCandidate(context, rawNumber ?: number)
+            }
+            return
+        }
+        val action = preferences.getString(KimoxSecurityModule.SCREENING_ACTION, "reject") ?: "reject"
+        if (action == "silence") return
+        val ended = runCatching {
+            context.getSystemService(TelecomManager::class.java).endCall()
+        }.getOrDefault(false)
+        KimoxDiagnostics.record(
+            context,
+            if (ended) "INFO" else "ERROR",
+            "LEGACY_CALL_FILTERED",
+            "reason=$reason; action=$action; ended=$ended",
+        )
+    }
+
+    private fun hasPermissions(context: Context): Boolean = listOf(
+        Manifest.permission.READ_PHONE_STATE,
+        Manifest.permission.READ_CALL_LOG,
+        Manifest.permission.ANSWER_PHONE_CALLS,
+    ).all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+
+    private fun isContact(context: Context, number: String): Boolean? {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) return null
+        val uri = android.net.Uri.withAppendedPath(
+            ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+            android.net.Uri.encode(number),
+        )
+        context.contentResolver.query(uri, arrayOf(ContactsContract.PhoneLookup._ID), null, null, null)?.use {
+            return it.moveToFirst()
+        }
+        return false
+    }
+}

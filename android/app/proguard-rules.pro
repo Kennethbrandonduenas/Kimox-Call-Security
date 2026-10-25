@@ -8,3 +8,6 @@
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
 # Add any project specific keep options here:
+
+# WorkManager creates workers by class name after process restarts.
+-keep class com.kimoxcallsecurity.KimoxSecurityAuditWorker { <init>(...); }

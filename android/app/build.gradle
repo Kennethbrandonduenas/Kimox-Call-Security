@@ -82,8 +82,11 @@ android {
         applicationId "com.kimoxcallsecurity"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1.0"
+        manifestPlaceholders = [
+            recoveryEnabled: project.findProperty("kimoxRecoveryEnabled") ?: "false"
+        ]
     }
     signingConfigs {
         debug {
@@ -106,11 +109,15 @@ android {
             signingConfig signingConfigs.debug
         }
         standalone {
-            initWith debug
+            initWith release
             debuggable false
+            minifyEnabled false
             signingConfig signingConfigs.debug
-            matchingFallbacks = ["debug"]
-            manifestPlaceholders = [usesCleartextTraffic: "false"]
+            matchingFallbacks = ["release"]
+            manifestPlaceholders = [
+                usesCleartextTraffic: "false",
+                recoveryEnabled: project.findProperty("kimoxRecoveryEnabled") ?: "false"
+            ]
         }
         release {
             signingConfig project.hasProperty("KIMOX_UPLOAD_STORE_FILE") ? signingConfigs.release : null
@@ -122,6 +129,7 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.work:work-runtime:2.11.2")
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
     testImplementation("junit:junit:4.13.2")

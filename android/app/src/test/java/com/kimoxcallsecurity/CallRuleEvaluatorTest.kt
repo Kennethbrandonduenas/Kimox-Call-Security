@@ -15,7 +15,10 @@ class CallRuleEvaluatorTest {
         blockedCountries: List<String> = emptyList(),
         blockPrivate: Boolean = false,
         blockUnknown: Boolean = false,
-    ) = CallRuleInput(number, isPrivate, isKnownContact, whitelist, blockedNumbers, blockedPrefixes, blockedCountries, blockPrivate, blockUnknown)
+        blockInternational: Boolean = false,
+        allowInternationalContacts: Boolean = true,
+        isForeignInternational: Boolean = false,
+    ) = CallRuleInput(number, isPrivate, isKnownContact, whitelist, blockedNumbers, blockedPrefixes, blockedCountries, blockPrivate, blockUnknown, blockInternational, allowInternationalContacts, isForeignInternational)
 
     @Test fun whitelistAlwaysWins() {
         assertNull(CallRuleEvaluator.evaluate(input(whitelist = setOf("51999111222"), blockedNumbers = setOf("51999111222"), blockUnknown = true, isKnownContact = false)))
@@ -31,5 +34,11 @@ class CallRuleEvaluatorTest {
 
     @Test fun missingContactsPermissionDoesNotBlockUnknownCalls() {
         assertNull(CallRuleEvaluator.evaluate(input(isKnownContact = null, blockUnknown = true)))
+    }
+
+    @Test fun blocksForeignInternationalCallsWithContactException() {
+        assertEquals("Llamada internacional", CallRuleEvaluator.evaluate(input(blockInternational = true, isForeignInternational = true, isKnownContact = false)))
+        assertNull(CallRuleEvaluator.evaluate(input(blockInternational = true, isForeignInternational = true, isKnownContact = true, allowInternationalContacts = true)))
+        assertEquals("Llamada internacional", CallRuleEvaluator.evaluate(input(blockInternational = true, isForeignInternational = true, isKnownContact = true, allowInternationalContacts = false)))
     }
 }

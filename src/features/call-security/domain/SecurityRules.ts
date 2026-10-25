@@ -6,6 +6,10 @@ export type SecurityRules = {
   blockedCountries: string[];
   blockPrivate: boolean;
   blockUnknown: boolean;
+  blockInternational: boolean;
+  allowInternationalContacts: boolean;
+  localCountryCode: string;
+  postCallPromptEnabled: boolean;
   action: ScreeningAction;
   notificationsEnabled: boolean;
   hideNumbersInNotifications: boolean;
@@ -16,8 +20,12 @@ export const DEFAULT_SECURITY_RULES: SecurityRules = {
   whitelist: [],
   blockedPrefixes: [],
   blockedCountries: [],
-  blockPrivate: false,
+  blockPrivate: true,
   blockUnknown: false,
+  blockInternational: true,
+  allowInternationalContacts: true,
+  localCountryCode: '51',
+  postCallPromptEnabled: true,
   action: 'reject',
   notificationsEnabled: true,
   hideNumbersInNotifications: true,

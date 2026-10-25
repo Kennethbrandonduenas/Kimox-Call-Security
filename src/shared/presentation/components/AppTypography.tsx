@@ -1,0 +1,7 @@
+import React, {ReactNode} from 'react';
+import {StyleSheet, Text, View} from 'react-native';
+import {palette, spacing} from '../theme';
+export function AppPageHeader({title, subtitle}: {title: string; subtitle?: string}) {return <View style={s.page}><Text style={s.pageTitle}>{title}</Text>{subtitle && <Text style={s.subtitle}>{subtitle}</Text>}</View>;}
+export function AppSectionHeader({title, description, action}: {title: string; description?: string; action?: ReactNode}) {return <View style={s.section}><View style={s.sectionText}><Text style={s.sectionTitle}>{title}</Text>{description && <Text style={s.description}>{description}</Text>}</View>{action}</View>;}
+export function AppEmptyState({message}: {message: string}) {return <Text style={s.empty}>{message}</Text>;}
+const s = StyleSheet.create({page: {marginBottom: spacing.xl}, pageTitle: {color: palette.text, fontSize: 26, fontWeight: '800', marginTop: spacing.sm}, subtitle: {color: palette.muted, lineHeight: 20, marginTop: 7}, section: {alignItems: 'flex-end', flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md, marginTop: spacing.xxl}, sectionText: {flex: 1}, sectionTitle: {color: palette.text, fontSize: 18, fontWeight: '800'}, description: {color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: spacing.xs}, empty: {color: palette.muted, fontSize: 12, paddingVertical: spacing.md, textAlign: 'center'}});

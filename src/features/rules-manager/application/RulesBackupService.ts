@@ -49,8 +49,12 @@ export async function importRules(content: string, password = ''): Promise<{bloc
     whitelist: stringArray(parsed.rules.whitelist),
     blockedPrefixes: stringArray(parsed.rules.blockedPrefixes),
     blockedCountries: stringArray(parsed.rules.blockedCountries),
-    blockPrivate: booleanValue(parsed.rules.blockPrivate, false),
+    blockPrivate: booleanValue(parsed.rules.blockPrivate, true),
     blockUnknown: booleanValue(parsed.rules.blockUnknown, false),
+    blockInternational: booleanValue(parsed.rules.blockInternational, true),
+    allowInternationalContacts: booleanValue(parsed.rules.allowInternationalContacts, true),
+    localCountryCode: phoneCodeValue(parsed.rules.localCountryCode),
+    postCallPromptEnabled: booleanValue(parsed.rules.postCallPromptEnabled, true),
     notificationsEnabled: booleanValue(parsed.rules.notificationsEnabled, true),
     hideNumbersInNotifications: booleanValue(parsed.rules.hideNumbersInNotifications, true),
     historyRetentionDays: retentionValue(parsed.rules.historyRetentionDays),
@@ -67,6 +71,11 @@ function booleanValue(value: unknown, fallback: boolean): boolean {
 
 function retentionValue(value: unknown): 7 | 30 | 90 | 0 {
   return value === 0 || value === 7 || value === 30 || value === 90 ? value : 30;
+}
+
+function phoneCodeValue(value: unknown): string {
+  const digits = typeof value === 'string' ? value.replace(/\D/g, '') : '';
+  return digits || '51';
 }
 
 function stringArray(value: unknown): string[] {

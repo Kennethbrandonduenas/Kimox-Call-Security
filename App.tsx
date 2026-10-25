@@ -6,7 +6,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import {BlockedNumber} from './src/features/blocking/domain/BlockedNumber';
 import {
   loadBlockedNumbers,
@@ -21,10 +25,22 @@ import {HistoryScreen} from './src/features/history/presentation/HistoryScreen';
 import {MalwareScannerScreen} from './src/features/malware/presentation/MalwareScannerScreen';
 import {SettingsScreen} from './src/features/diagnostics/presentation/SettingsScreen';
 import {styles} from './src/features/blocking/presentation/styles';
+import {AppErrorBoundary} from './src/shared/presentation/AppErrorBoundary';
 
 type Tab = 'home' | 'blocked' | 'history' | 'malware' | 'rules' | 'settings';
 
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppErrorBoundary>
+        <AppContent />
+      </AppErrorBoundary>
+    </SafeAreaProvider>
+  );
+}
+
+function AppContent() {
+  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>('home');
   const [protection, setProtectionState] = useState(true);
   const [blocked, setBlocked] = useState<BlockedNumber[]>([]);
@@ -57,8 +73,7 @@ export default function App() {
             : <SecurityRulesScreen />;
 
   return (
-    <SafeAreaProvider>
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="light-content" />
       <View style={styles.header}>
         <View>
@@ -67,8 +82,18 @@ export default function App() {
         </View>
         <View style={styles.shield}><Text style={styles.shieldText}>✓</Text></View>
       </View>
-      <View style={[styles.content, {flex: 1}]}>{screen}</View>
-      <View style={styles.bottomBar}>
+      <View
+        style={[
+          styles.content,
+          {flex: 1, paddingBottom: 93 + insets.bottom},
+        ]}>
+        <View style={{flex: 1}}>{screen}</View>
+      </View>
+      <View
+        style={[
+          styles.bottomBar,
+          {height: 73 + insets.bottom, paddingBottom: insets.bottom},
+        ]}>
         <Nav label="Inicio" icon="⌂" active={tab === 'home'} onPress={() => setTab('home')} />
         <Nav label="Bloqueos" icon="⊘" active={tab === 'blocked'} onPress={() => setTab('blocked')} />
         <Nav label="Reglas" icon="⚙" active={tab === 'rules'} onPress={() => setTab('rules')} />
@@ -76,7 +101,6 @@ export default function App() {
         <Nav label="Ajustes" icon="⋮" active={tab === 'settings'} onPress={() => setTab('settings')} />
       </View>
     </SafeAreaView>
-    </SafeAreaProvider>
   );
 }
 

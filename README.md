@@ -13,8 +13,27 @@ Aplicación React Native de protección local de llamadas para Android. No requi
 - Reglas e historial cifrados con AES-GCM y una clave protegida por Android Keystore.
 - Diagnóstico de rol de filtrado, contactos, notificaciones y batería.
 - Revisión orientativa de permisos sensibles de aplicaciones visibles para Android.
+- Diagnóstico local rotativo y actividad nativa `Kimox Recovery` independiente de React Native.
 
 El análisis antimalware es informativo: el aislamiento de Android impide inspeccionar completamente otras aplicaciones y no permite certificar que un dispositivo esté libre de malware.
+
+## Recuperación y diagnóstico
+
+Recovery se conserva deshabilitado en las compilaciones normales. Para crear un APK temporal de diagnóstico que añada el acceso **Kimox Recovery**, compila con:
+
+```powershell
+cd android
+.\gradlew.bat assembleStandalone -PkimoxRecoveryEnabled=true -PreactNativeArchitectures=arm64-v8a
+```
+
+En ese APK de diagnóstico, si la aplicación principal se cierra al iniciar:
+
+1. Abre `Kimox Recovery` desde el launcher del teléfono.
+2. Pulsa **Compartir diagnóstico TXT** para enviar el registro técnico.
+3. Si el registro indica datos cifrados dañados, usa **Restablecer datos protegidos**.
+4. Pulsa **Intentar abrir Kimox**.
+
+Recovery se ejecuta en el proceso Android aislado `:recovery` y no inicializa React Native. Los registros se rotan localmente, ocultan números largos y no guardan contraseñas ni claves criptográficas.
 
 ## Desarrollo
 
