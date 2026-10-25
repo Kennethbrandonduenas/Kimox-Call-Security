@@ -50,6 +50,7 @@ object KimoxLegacyCallHandler {
                 internationalDigits?.startsWith(countryCode) == false,
         ))
         if (reason == null) {
+            preferences.putString(KimoxSecurityModule.LAST_CALL_OUTCOME, "Permitida: no coincide con una regla")
             if (number != null && isKnownContact == false &&
                 preferences.getBoolean(KimoxSecurityModule.POST_CALL_PROMPT_ENABLED, true)) {
                 KimoxPostCallPrompt.rememberCandidate(context, rawNumber ?: number)
@@ -57,7 +58,11 @@ object KimoxLegacyCallHandler {
             return
         }
         val action = preferences.getString(KimoxSecurityModule.SCREENING_ACTION, "reject") ?: "reject"
-        if (action == "silence") return
+        if (action == "silence") {
+            preferences.putString(KimoxSecurityModule.LAST_CALL_OUTCOME, "Silenciar no es compatible con el modo Android 9")
+            KimoxDiagnostics.record(context, "WARN", "LEGACY_SILENCE_UNSUPPORTED", "reason=$reason")
+            return
+        }
         val ended = runCatching {
             context.getSystemService(TelecomManager::class.java).endCall()
         }.getOrDefault(false)
@@ -67,6 +72,7 @@ object KimoxLegacyCallHandler {
             "LEGACY_CALL_FILTERED",
             "reason=$reason; action=$action; ended=$ended",
         )
+        preferences.putString(KimoxSecurityModule.LAST_CALL_OUTCOME, if (ended) "Bloqueo confirmado: $reason" else "Android no confirmó el bloqueo: $reason")
     }
 
     private fun hasPermissions(context: Context): Boolean = listOf(

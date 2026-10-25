@@ -25,6 +25,10 @@ export type DiagnosticStatus = {
   legacyCallReceiver: boolean;
   lastPhoneEventAt: number;
   lastCallFilterAt: number;
+  lastCallOutcome: string;
+  screeningMode: 'SYSTEM_SCREENING' | 'LEGACY_ANDROID_9' | 'LIMITED_LEGACY';
+  compatibilityMessage: string;
+  manufacturer: string;
 };
 
 export type DeviceCountry = {
@@ -115,6 +119,10 @@ export const getDiagnostics = async (): Promise<DiagnosticStatus> =>
     legacyCallReceiver: false,
     lastPhoneEventAt: 0,
     lastCallFilterAt: 0,
+    lastCallOutcome: 'No disponible fuera de Android.',
+    screeningMode: 'LIMITED_LEGACY',
+    compatibilityMessage: 'La protección de llamadas requiere Android.',
+    manufacturer: '',
   };
 export const detectDeviceCountry = async (): Promise<DeviceCountry> =>
   (await native.detectDeviceCountry?.()) ?? {

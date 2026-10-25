@@ -191,7 +191,7 @@ class KimoxSecurityModule(
         val roleEnabled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val manager = context.getSystemService(RoleManager::class.java)
             manager.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING) && manager.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)
-        } else legacyCallPermissionsGranted()
+        } else false
         val legacyReceiverEnabled = context.packageManager.getReceiverInfo(
             ComponentName(context, KimoxPhoneStateReceiver::class.java),
             PackageManager.GET_META_DATA,
@@ -202,26 +202,46 @@ class KimoxSecurityModule(
         val contactsEnabled = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
         val accessibilityManager = context.getSystemService(AccessibilityManager::class.java)
         val powerManager = context.getSystemService(PowerManager::class.java)
+        val legacySupported = Build.VERSION.SDK_INT == Build.VERSION_CODES.P
+        val legacyReady = legacySupported && legacyReceiverEnabled && legacyCallPermissionsGranted()
+        val screeningReady = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) roleEnabled else legacyReady
+        val backgroundReady = screeningReady && powerManager.isIgnoringBatteryOptimizations(context.packageName)
+        val mode = when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> "SYSTEM_SCREENING"
+            Build.VERSION.SDK_INT == Build.VERSION_CODES.P -> "LEGACY_ANDROID_9"
+            else -> "LIMITED_LEGACY"
+        }
+        val compatibility = when {
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.P -> "No se puede garantizar el bloqueo automático en Android ${Build.VERSION.RELEASE}."
+            !screeningReady -> "Faltan permisos o el filtrado del sistema no está configurado."
+            !powerManager.isIgnoringBatteryOptimizations(context.packageName) -> "Android puede limitar la detección si la batería está restringida."
+            preferences.getString(LAST_PHONE_EVENT_AT, "0") == "0" -> "Esperando la primera llamada para verificar la detección."
+            else -> "La detección de llamadas ya recibió eventos del dispositivo."
+        }
         promise.resolve(Arguments.createMap().apply {
-            putBoolean("callScreening", roleEnabled)
+            putBoolean("callScreening", screeningReady)
             putBoolean("legacyCallReceiver", legacyReceiverEnabled)
             putBoolean("notifications", notificationEnabled)
             putBoolean("contacts", contactsEnabled)
             putBoolean("overlay", Settings.canDrawOverlays(context))
             putBoolean("accessibility", accessibilityManager.isEnabled)
             putBoolean("batteryUnrestricted", powerManager.isIgnoringBatteryOptimizations(context.packageName))
-            putBoolean("backgroundReady", preferences.getBoolean(PROTECTION_ENABLED, true))
+            putBoolean("backgroundReady", backgroundReady && preferences.getBoolean(PROTECTION_ENABLED, true))
             putBoolean("periodicAudit", preferences.getBoolean(KimoxBackgroundManager.PERIODIC_AUDIT_ENABLED, false) &&
                 preferences.getBoolean(MALWARE_CONSENT, false))
             putDouble("lastPhoneEventAt", preferences.getString(LAST_PHONE_EVENT_AT, "0")?.toDoubleOrNull() ?: 0.0)
             putDouble("lastCallFilterAt", preferences.getString(LAST_CALL_FILTER_AT, "0")?.toDoubleOrNull() ?: 0.0)
+            putString("lastCallOutcome", preferences.getString(LAST_CALL_OUTCOME, "Sin evaluaciones todavía"))
+            putString("screeningMode", mode)
+            putString("compatibilityMessage", compatibility)
+            putString("manufacturer", Build.MANUFACTURER.orEmpty())
         })
     }
 
     @ReactMethod
     fun isCallScreeningEnabled(promise: Promise) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            promise.resolve(legacyCallPermissionsGranted())
+            promise.resolve(Build.VERSION.SDK_INT == Build.VERSION_CODES.P && legacyCallPermissionsGranted())
             return
         }
         val manager = context.getSystemService(RoleManager::class.java)
@@ -273,11 +293,28 @@ class KimoxSecurityModule(
 
     @ReactMethod
     fun openManufacturerBatterySettings() {
-        val huaweiIntent = Intent().setComponent(ComponentName(
-            "com.huawei.systemmanager",
-            "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity",
-        )).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        runCatching { context.startActivity(huaweiIntent) }.getOrElse { openBatterySettings() }
+        val manufacturer = Build.MANUFACTURER.lowercase()
+        val component = when {
+            manufacturer.contains("huawei") || manufacturer.contains("honor") -> ComponentName(
+                "com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity",
+            )
+            manufacturer.contains("xiaomi") || manufacturer.contains("redmi") -> ComponentName(
+                "com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity",
+            )
+            manufacturer.contains("oppo") || manufacturer.contains("realme") -> ComponentName(
+                "com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity",
+            )
+            manufacturer.contains("vivo") -> ComponentName(
+                "com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity",
+            )
+            else -> null
+        }
+        if (component == null) {
+            openBatterySettings()
+            return
+        }
+        val intent = Intent().setComponent(component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(intent) }.getOrElse { openBatterySettings() }
     }
 
     @ReactMethod
@@ -710,6 +747,7 @@ class KimoxSecurityModule(
         const val NOTIFICATIONS_ENABLED = "notifications_enabled"
         const val LAST_PHONE_EVENT_AT = "last_phone_event_at"
         const val LAST_CALL_FILTER_AT = "last_call_filter_at"
+        const val LAST_CALL_OUTCOME = "last_call_outcome"
         const val HIDE_NOTIFICATION_NUMBERS = "hide_notification_numbers"
         const val HISTORY_RETENTION_DAYS = "history_retention_days"
         const val PROTECTION_ENABLED = "protection_enabled"

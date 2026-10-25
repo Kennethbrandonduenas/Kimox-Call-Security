@@ -14,6 +14,8 @@ import androidx.core.content.ContextCompat
 class KimoxCallScreeningService : CallScreeningService() {
     override fun onScreenCall(callDetails: Call.Details) {
         val preferences = SecurePreferences(this)
+        preferences.putString(KimoxSecurityModule.LAST_CALL_FILTER_AT, System.currentTimeMillis().toString())
+        KimoxDiagnostics.record(this, "INFO", "SYSTEM_CALL_SCREENING_EVALUATING", "hasHandle=${callDetails.handle != null}")
         if (!preferences.getBoolean(KimoxSecurityModule.PROTECTION_ENABLED, true)) {
             respondToCall(callDetails, CallResponse.Builder().build())
             return
@@ -63,6 +65,7 @@ class KimoxCallScreeningService : CallScreeningService() {
         ))
 
         if (reason == null) {
+            preferences.putString(KimoxSecurityModule.LAST_CALL_OUTCOME, "Permitida: no coincide con una regla")
             if (number != null && isKnownContact == false &&
                 preferences.getBoolean(KimoxSecurityModule.POST_CALL_PROMPT_ENABLED, true)) {
                 KimoxPostCallPrompt.rememberCandidate(this, rawNumber ?: number)
@@ -77,6 +80,8 @@ class KimoxCallScreeningService : CallScreeningService() {
             "block" -> CallResponse.Builder().setDisallowCall(true).setRejectCall(false).setSkipCallLog(false).setSkipNotification(false).build()
             else -> CallResponse.Builder().setDisallowCall(true).setRejectCall(true).setSkipCallLog(false).setSkipNotification(false).build()
         }
+        preferences.putString(KimoxSecurityModule.LAST_CALL_OUTCOME, "Acción enviada al sistema: $action ($reason)")
+        KimoxDiagnostics.record(this, "INFO", "SYSTEM_CALL_SCREENED", "action=$action; reason=$reason")
         val displayNumber = rawNumber ?: "Número privado"
         saveHistory(displayNumber, action, reason)
         if (preferences.getBoolean(KimoxSecurityModule.NOTIFICATIONS_ENABLED, true)) {
