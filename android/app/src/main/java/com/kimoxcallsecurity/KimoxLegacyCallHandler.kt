@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.ContactsContract
-import android.telecom.TelecomManager
 import androidx.core.content.ContextCompat
 
 object KimoxLegacyCallHandler {
@@ -51,6 +50,7 @@ object KimoxLegacyCallHandler {
         ))
         if (reason == null) {
             preferences.putString(KimoxSecurityModule.LAST_CALL_OUTCOME, "Permitida: no coincide con una regla")
+            KimoxCallHistory.record(context, rawNumber ?: "Número privado", "allowed", "Permitida: no coincide con una regla")
             if (number != null && isKnownContact == false &&
                 preferences.getBoolean(KimoxSecurityModule.POST_CALL_PROMPT_ENABLED, true)) {
                 KimoxPostCallPrompt.rememberCandidate(context, rawNumber ?: number)
@@ -59,27 +59,28 @@ object KimoxLegacyCallHandler {
         }
         val action = preferences.getString(KimoxSecurityModule.SCREENING_ACTION, "reject") ?: "reject"
         if (action == "silence") {
+            KimoxCallHistory.record(context, rawNumber ?: "Número privado", action, reason)
             preferences.putString(KimoxSecurityModule.LAST_CALL_OUTCOME, "Silenciar no es compatible con el modo Android 9")
             KimoxDiagnostics.record(context, "WARN", "LEGACY_SILENCE_UNSUPPORTED", "reason=$reason")
             return
         }
-        val ended = runCatching {
-            context.getSystemService(TelecomManager::class.java).endCall()
-        }.getOrDefault(false)
+        val result = KimoxLegacyCallTerminator.endIncomingCall(context)
+        val ended = result.ended
+        KimoxCallHistory.record(context, rawNumber ?: "Número privado", action, reason)
         KimoxDiagnostics.record(
             context,
             if (ended) "INFO" else "ERROR",
             "LEGACY_CALL_FILTERED",
-            "reason=$reason; action=$action; ended=$ended",
+            "reason=$reason; action=$action; ended=$ended; mechanism=${result.mechanism}; error=${result.error.orEmpty()}",
         )
         preferences.putString(KimoxSecurityModule.LAST_CALL_OUTCOME, if (ended) "Bloqueo confirmado: $reason" else "Android no confirmó el bloqueo: $reason")
     }
 
-    private fun hasPermissions(context: Context): Boolean = listOf(
-        Manifest.permission.READ_PHONE_STATE,
-        Manifest.permission.READ_CALL_LOG,
-        Manifest.permission.ANSWER_PHONE_CALLS,
-    ).all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+    private fun hasPermissions(context: Context): Boolean {
+        val required = mutableListOf(Manifest.permission.READ_PHONE_STATE, Manifest.permission.READ_CALL_LOG)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) required += Manifest.permission.ANSWER_PHONE_CALLS
+        return required.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+    }
 
     private fun isContact(context: Context, number: String): Boolean? {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) return null

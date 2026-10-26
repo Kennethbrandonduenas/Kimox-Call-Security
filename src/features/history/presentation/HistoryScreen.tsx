@@ -6,7 +6,7 @@ import {CallHistoryEntry, clearHistory, loadHistory} from '../../blocking/applic
 export function HistoryScreen() {
   const [events, setEvents] = useState<CallHistoryEntry[]>([]);
   const [query, setQuery] = useState('');
-  const [action, setAction] = useState<'all' | 'block' | 'reject' | 'silence'>('all');
+  const [action, setAction] = useState<'all' | 'allowed' | 'block' | 'reject' | 'silence'>('all');
   useEffect(() => { loadHistory().then(setEvents); }, []);
   const filtered = useMemo(() => events.filter(event => {
     const matches = !query || event.number.toLowerCase().includes(query.toLowerCase()) || event.reason.toLowerCase().includes(query.toLowerCase());
@@ -18,11 +18,11 @@ export function HistoryScreen() {
   return <AppScreen>
     <AppPageHeader title="Historial protegido" subtitle="Actividad almacenada únicamente en este dispositivo." />
     <AppTextField value={query} onChangeText={setQuery} placeholder="Buscar número o motivo" />
-    <View style={s.filters}>{(['all', 'block', 'reject', 'silence'] as const).map(value => <AppChip key={value} selected={action === value} onPress={() => setAction(value)} label={value === 'all' ? 'Todas' : value === 'block' ? 'Bloqueadas' : value === 'reject' ? 'Rechazadas' : 'Silenciadas'} />)}</View>
+    <View style={s.filters}>{(['all', 'allowed', 'block', 'reject', 'silence'] as const).map(value => <AppChip key={value} selected={action === value} onPress={() => setAction(value)} label={value === 'all' ? 'Todas' : value === 'allowed' ? 'Permitidas' : value === 'block' ? 'Bloqueadas' : value === 'reject' ? 'Rechazadas' : 'Silenciadas'} />)}</View>
     {filtered.length === 0 && <AppEmptyState message="No hay llamadas que coincidan." />}
     {filtered.map(event => <AppListItem key={event.id} title={event.number} subtitle={`${event.reason} · ${translateAction(event.action)}`} detail={new Date(event.timestamp).toLocaleString()} leading={<Text>×</Text>}/>)}
     {events.length > 0 && <AppButton title="Borrar historial" variant="danger" onPress={removeAll} />}
   </AppScreen>;
 }
-function translateAction(action: string) {if (action === 'silence') return 'Silenciada'; if (action === 'block') return 'Bloqueada'; return 'Rechazada';}
+function translateAction(action: string) {if (action === 'allowed') return 'Permitida'; if (action === 'silence') return 'Silenciada'; if (action === 'block') return 'Bloqueada'; return 'Rechazada';}
 const s = StyleSheet.create({filters: {flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 12}});

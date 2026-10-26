@@ -202,17 +202,19 @@ class KimoxSecurityModule(
         val contactsEnabled = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
         val accessibilityManager = context.getSystemService(AccessibilityManager::class.java)
         val powerManager = context.getSystemService(PowerManager::class.java)
-        val legacySupported = Build.VERSION.SDK_INT == Build.VERSION_CODES.P
+        val legacySupported = Build.VERSION.SDK_INT in Build.VERSION_CODES.N..Build.VERSION_CODES.P
         val legacyReady = legacySupported && legacyReceiverEnabled && legacyCallPermissionsGranted()
         val screeningReady = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) roleEnabled else legacyReady
         val backgroundReady = screeningReady && powerManager.isIgnoringBatteryOptimizations(context.packageName)
         val mode = when {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> "SYSTEM_SCREENING"
             Build.VERSION.SDK_INT == Build.VERSION_CODES.P -> "LEGACY_ANDROID_9"
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.N -> "LEGACY_ANDROID_7_8"
             else -> "LIMITED_LEGACY"
         }
         val compatibility = when {
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.P -> "No se puede garantizar el bloqueo automático en Android ${Build.VERSION.RELEASE}."
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.N -> "Esta versión de Android no es compatible con Kimox."
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.P -> "Modo compatible Android ${Build.VERSION.RELEASE}: el bloqueo depende del servicio heredado del fabricante."
             !screeningReady -> "Faltan permisos o el filtrado del sistema no está configurado."
             !powerManager.isIgnoringBatteryOptimizations(context.packageName) -> "Android puede limitar la detección si la batería está restringida."
             preferences.getString(LAST_PHONE_EVENT_AT, "0") == "0" -> "Esperando la primera llamada para verificar la detección."
@@ -241,7 +243,7 @@ class KimoxSecurityModule(
     @ReactMethod
     fun isCallScreeningEnabled(promise: Promise) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            promise.resolve(Build.VERSION.SDK_INT == Build.VERSION_CODES.P && legacyCallPermissionsGranted())
+            promise.resolve(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && legacyCallPermissionsGranted())
             return
         }
         val manager = context.getSystemService(RoleManager::class.java)
@@ -254,7 +256,7 @@ class KimoxSecurityModule(
         val permissions = mutableListOf(Manifest.permission.READ_CONTACTS, Manifest.permission.READ_PHONE_STATE)
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
             permissions.add(Manifest.permission.READ_CALL_LOG)
-            permissions.add(Manifest.permission.ANSWER_PHONE_CALLS)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) permissions.add(Manifest.permission.ANSWER_PHONE_CALLS)
         }
         if (Build.VERSION.SDK_INT >= 33) permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         activity.requestPermissions(permissions.toTypedArray(), PERMISSION_REQUEST_CODE)
@@ -695,11 +697,11 @@ class KimoxSecurityModule(
         context.currentActivity?.startActivity(intent)
     }
 
-    private fun legacyCallPermissionsGranted(): Boolean = listOf(
-        Manifest.permission.READ_PHONE_STATE,
-        Manifest.permission.READ_CALL_LOG,
-        Manifest.permission.ANSWER_PHONE_CALLS,
-    ).all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+    private fun legacyCallPermissionsGranted(): Boolean {
+        val required = mutableListOf(Manifest.permission.READ_PHONE_STATE, Manifest.permission.READ_CALL_LOG)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) required += Manifest.permission.ANSWER_PHONE_CALLS
+        return required.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+    }
 
     @Suppress("DEPRECATION")
     private fun installerName(manager: PackageManager, packageName: String): String =

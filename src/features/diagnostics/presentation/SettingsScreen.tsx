@@ -53,6 +53,7 @@ function lastActivity(timestamp: number) {return timestamp ? new Date(timestamp)
 function modeDescription(mode: DiagnosticStatus['screeningMode']) {
   if (mode === 'SYSTEM_SCREENING') return 'Android 10 o superior: el sistema llama directamente a Kimox para filtrar llamadas.';
   if (mode === 'LEGACY_ANDROID_9') return 'Android 9: Kimox usa el receptor telefónico nativo y confirma cada evaluación.';
+  if (mode === 'LEGACY_ANDROID_7_8') return 'Android 7 y 8: modo compatible. Kimox usa el receptor telefónico y el servicio heredado disponible en el fabricante.';
   return 'Esta versión de Android no permite garantizar el bloqueo automático. Kimox mostrará el estado real.';
 }
 const s = StyleSheet.create({gap: {marginTop: 10}});

@@ -49,6 +49,9 @@
         android:name=".KimoxPostCallActionReceiver"
         android:exported="false" />
       <receiver
+        android:name=".KimoxPostCallReminderReceiver"
+        android:exported="false" />
+      <receiver
         android:name=".KimoxPackageMonitor"
         android:exported="false">
         <intent-filter>

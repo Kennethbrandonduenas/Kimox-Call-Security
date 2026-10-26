@@ -66,6 +66,7 @@ class KimoxCallScreeningService : CallScreeningService() {
 
         if (reason == null) {
             preferences.putString(KimoxSecurityModule.LAST_CALL_OUTCOME, "Permitida: no coincide con una regla")
+            KimoxCallHistory.record(this, rawNumber ?: "Número privado", "allowed", "Permitida: no coincide con una regla")
             if (number != null && isKnownContact == false &&
                 preferences.getBoolean(KimoxSecurityModule.POST_CALL_PROMPT_ENABLED, true)) {
                 KimoxPostCallPrompt.rememberCandidate(this, rawNumber ?: number)
@@ -83,7 +84,7 @@ class KimoxCallScreeningService : CallScreeningService() {
         preferences.putString(KimoxSecurityModule.LAST_CALL_OUTCOME, "Acción enviada al sistema: $action ($reason)")
         KimoxDiagnostics.record(this, "INFO", "SYSTEM_CALL_SCREENED", "action=$action; reason=$reason")
         val displayNumber = rawNumber ?: "Número privado"
-        saveHistory(displayNumber, action, reason)
+        KimoxCallHistory.record(this, displayNumber, action, reason)
         if (preferences.getBoolean(KimoxSecurityModule.NOTIFICATIONS_ENABLED, true)) {
             val notificationNumber = if (preferences.getBoolean(KimoxSecurityModule.HIDE_NOTIFICATION_NUMBERS, true)) maskNumber(displayNumber) else displayNumber
             notifyScreened(notificationNumber, action)
@@ -96,17 +97,6 @@ class KimoxCallScreeningService : CallScreeningService() {
         val uri = UriHelper.contactLookup(number)
         contentResolver.query(uri, arrayOf(ContactsContract.PhoneLookup._ID), null, null, null)?.use { return it.moveToFirst() }
         return false
-    }
-
-    private fun saveHistory(number: String, action: String, reason: String) {
-        val preferences = SecurePreferences(this)
-        val current = preferences.getStringSet(KimoxSecurityModule.CALL_HISTORY).toMutableSet()
-        current.add("${System.currentTimeMillis()}|$number|$action|$reason")
-        val retentionDays = preferences.getInt(KimoxSecurityModule.HISTORY_RETENTION_DAYS, 30)
-        val cutoff = if (retentionDays == 0) Long.MIN_VALUE else System.currentTimeMillis() - retentionDays * 86_400_000L
-        val limited = current.filter { (it.substringBefore('|').toLongOrNull() ?: 0L) >= cutoff }
-            .sortedByDescending { it.substringBefore('|').toLongOrNull() ?: 0L }.take(MAX_HISTORY).toSet()
-        preferences.putStringSet(KimoxSecurityModule.CALL_HISTORY, limited)
     }
 
     private fun notifyScreened(number: String, action: String) {
@@ -136,6 +126,5 @@ class KimoxCallScreeningService : CallScreeningService() {
     }
 
     companion object {
-        private const val MAX_HISTORY = 200
     }
 }

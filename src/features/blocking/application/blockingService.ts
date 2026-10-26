@@ -26,7 +26,7 @@ export type DiagnosticStatus = {
   lastPhoneEventAt: number;
   lastCallFilterAt: number;
   lastCallOutcome: string;
-  screeningMode: 'SYSTEM_SCREENING' | 'LEGACY_ANDROID_9' | 'LIMITED_LEGACY';
+  screeningMode: 'SYSTEM_SCREENING' | 'LEGACY_ANDROID_9' | 'LEGACY_ANDROID_7_8' | 'LIMITED_LEGACY';
   compatibilityMessage: string;
   manufacturer: string;
 };
@@ -63,8 +63,22 @@ type KimoxNativeModule = {
 
 const native = (NativeModules.KimoxSecurity ?? {}) as KimoxNativeModule;
 
-export const syncBlockedNumbers = (numbers: BlockedNumber[]) =>
-  native.setBlockedNumbers?.(numbers.map(item => item.number));
+type IosCallDirectoryModule = {
+  sync?: (blocked: string[], labels: Record<string, string>) => Promise<boolean>;
+  status?: () => Promise<{status: 'enabled' | 'disabled' | 'unknown'; lastSyncAt: number; lastError: string}>;
+};
+
+const iosCallDirectory = (NativeModules.KimoxCallDirectoryModule ?? {}) as IosCallDirectoryModule;
+
+export const syncBlockedNumbers = (numbers: BlockedNumber[]) => {
+  if (Platform.OS === 'ios') return syncIosCallDirectory(numbers);
+  return native.setBlockedNumbers?.(numbers.map(item => item.number));
+};
+
+export const syncIosCallDirectory = (numbers: BlockedNumber[], labels: Record<string, string> = {}) =>
+  iosCallDirectory.sync?.(numbers.map(item => item.number), labels);
+
+export const getIosCallDirectoryStatus = () => iosCallDirectory.status?.();
 
 export async function loadBlockedNumbers(): Promise<BlockedNumber[]> {
   const numbers = (await native.getBlockedNumbers?.()) ?? [];

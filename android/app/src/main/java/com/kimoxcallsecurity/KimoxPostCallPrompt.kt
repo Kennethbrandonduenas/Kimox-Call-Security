@@ -1,5 +1,6 @@
 package com.kimoxcallsecurity
 
+import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -21,25 +22,42 @@ object KimoxPostCallPrompt {
     private const val LAST_PROMPT_TIME = "post_call_last_prompt_time"
     private const val CANDIDATE_MAX_AGE_MS = 6 * 60 * 60 * 1000L
     private const val REPEAT_DELAY_MS = 24 * 60 * 60 * 1000L
+    private const val REMINDER_DELAY_MS = 45 * 1000L
+    private const val REMINDER_REQUEST_CODE = 5103
 
     fun rememberCandidate(context: Context, number: String) {
         val preferences = SecurePreferences(context)
         preferences.putString(CANDIDATE_NUMBER, number)
         preferences.putString(CANDIDATE_TIME, System.currentTimeMillis().toString())
+        KimoxDiagnostics.record(context, "INFO", "POST_CALL_CANDIDATE_SAVED", "numberPresent=${number.isNotBlank()}")
+        scheduleFallback(context)
     }
 
     fun showIfPending(context: Context) {
+        cancelFallback(context)
         val preferences = SecurePreferences(context)
-        if (!preferences.getBoolean(KimoxSecurityModule.POST_CALL_PROMPT_ENABLED, true)) return
-        val number = preferences.getString(CANDIDATE_NUMBER, "")?.takeIf { it.isNotEmpty() } ?: return
+        if (!preferences.getBoolean(KimoxSecurityModule.POST_CALL_PROMPT_ENABLED, true)) {
+            KimoxDiagnostics.record(context, "INFO", "POST_CALL_PROMPT_SKIPPED", "disabled=true")
+            return
+        }
+        val number = preferences.getString(CANDIDATE_NUMBER, "")?.takeIf { it.isNotEmpty() } ?: run {
+            KimoxDiagnostics.record(context, "INFO", "POST_CALL_PROMPT_SKIPPED", "candidateMissing=true")
+            return
+        }
         val candidateTime = preferences.getString(CANDIDATE_TIME, "0")?.toLongOrNull() ?: 0L
         preferences.remove(CANDIDATE_NUMBER)
         preferences.remove(CANDIDATE_TIME)
         val now = System.currentTimeMillis()
-        if (now - candidateTime !in 0..CANDIDATE_MAX_AGE_MS) return
+        if (now - candidateTime !in 0..CANDIDATE_MAX_AGE_MS) {
+            KimoxDiagnostics.record(context, "INFO", "POST_CALL_PROMPT_SKIPPED", "candidateExpired=true")
+            return
+        }
         val lastNumber = preferences.getString(LAST_PROMPT_NUMBER, "").orEmpty()
         val lastTime = preferences.getString(LAST_PROMPT_TIME, "0")?.toLongOrNull() ?: 0L
-        if (lastNumber == number && now - lastTime < REPEAT_DELAY_MS) return
+        if (lastNumber == number && now - lastTime < REPEAT_DELAY_MS) {
+            KimoxDiagnostics.record(context, "INFO", "POST_CALL_PROMPT_SKIPPED", "repeatSuppressed=true")
+            return
+        }
         preferences.putString(LAST_PROMPT_NUMBER, number)
         preferences.putString(LAST_PROMPT_TIME, now.toString())
 
@@ -54,7 +72,38 @@ object KimoxPostCallPrompt {
             .addAction(0, "Descartar", action(context, ACTION_DISMISS, number, 3))
             .build()
         manager.notify(NOTIFICATION_ID, notification)
+        KimoxDiagnostics.record(context, "INFO", "POST_CALL_PROMPT_POSTED", "numberPresent=true")
     }
+
+    private fun scheduleFallback(context: Context) {
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) return
+        val alarmManager = context.getSystemService(AlarmManager::class.java)
+        runCatching {
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                System.currentTimeMillis() + REMINDER_DELAY_MS,
+                reminderIntent(context),
+            )
+        }.onSuccess {
+            KimoxDiagnostics.record(context, "INFO", "POST_CALL_REMINDER_SCHEDULED", "delaySeconds=45")
+        }.onFailure {
+            KimoxDiagnostics.record(context, "WARN", "POST_CALL_REMINDER_FAILED", it.javaClass.simpleName)
+        }
+    }
+
+    fun retryFallback(context: Context) = scheduleFallback(context)
+
+    private fun cancelFallback(context: Context) {
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) return
+        context.getSystemService(AlarmManager::class.java).cancel(reminderIntent(context))
+    }
+
+    private fun reminderIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(
+        context,
+        REMINDER_REQUEST_CODE,
+        Intent(context, KimoxPostCallReminderReceiver::class.java).setAction(ACTION_REMINDER),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
 
     private fun action(context: Context, action: String, number: String, requestCode: Int): PendingIntent {
         val intent = Intent(context, KimoxPostCallActionReceiver::class.java)
@@ -71,8 +120,23 @@ object KimoxPostCallPrompt {
     const val ACTION_BLOCK = "com.kimoxcallsecurity.POST_CALL_BLOCK"
     const val ACTION_ALLOW = "com.kimoxcallsecurity.POST_CALL_ALLOW"
     const val ACTION_DISMISS = "com.kimoxcallsecurity.POST_CALL_DISMISS"
+    const val ACTION_REMINDER = "com.kimoxcallsecurity.POST_CALL_REMINDER"
     const val EXTRA_NUMBER = "number"
     const val NOTIFICATION = NOTIFICATION_ID
+}
+
+class KimoxPostCallReminderReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != KimoxPostCallPrompt.ACTION_REMINDER) return
+        val callState = context.getSystemService(TelephonyManager::class.java).callState
+        if (callState != TelephonyManager.CALL_STATE_IDLE) {
+            KimoxDiagnostics.record(context, "INFO", "POST_CALL_REMINDER_DEFERRED", "callState=$callState")
+            KimoxPostCallPrompt.retryFallback(context.applicationContext)
+            return
+        }
+        KimoxDiagnostics.record(context, "INFO", "POST_CALL_REMINDER_FIRED")
+        KimoxPostCallPrompt.showIfPending(context.applicationContext)
+    }
 }
 
 class KimoxPhoneStateReceiver : BroadcastReceiver() {

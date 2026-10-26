@@ -119,6 +119,12 @@ android {
                 recoveryEnabled: project.findProperty("kimoxRecoveryEnabled") ?: "false"
             ]
         }
+        portable {
+            initWith standalone
+            applicationIdSuffix ".portable"
+            versionNameSuffix "-portable"
+            matchingFallbacks = ["release"]
+        }
         release {
             signingConfig project.hasProperty("KIMOX_UPLOAD_STORE_FILE") ? signingConfigs.release : null
             minifyEnabled enableProguardInReleaseBuilds
