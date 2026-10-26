@@ -21,6 +21,16 @@ enum KimoxCallDirectoryStore {
         CXCallDirectoryManager.sharedInstance.reloadExtension(withIdentifier: extensionIdentifier)
     }
 
+    static func load() throws -> CallDirectoryEntries {
+        guard let defaults = UserDefaults(suiteName: appGroup) else {
+            throw NSError(domain: "KimoxCallDirectory", code: 1, userInfo: [NSLocalizedDescriptionKey: "App Group no configurado"])
+        }
+        guard let data = defaults.data(forKey: entriesKey) else {
+            return CallDirectoryEntries(blocked: [], identified: [])
+        }
+        return try JSONDecoder().decode(CallDirectoryEntries.self, from: data).sanitized
+    }
+
     private static func normalize(_ raw: String) -> Int64? {
         let digits = raw.filter(\.isNumber)
         guard digits.count >= 7, let number = Int64(digits), number > 0 else { return nil }

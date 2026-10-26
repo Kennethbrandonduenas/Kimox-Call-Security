@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- Necesario para que el auditor local pueda revisar las apps instaladas en Android 11+. -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
@@ -29,6 +30,10 @@
           <action android:name="android.telecom.CallScreeningService" />
         </intent-filter>
       </service>
+      <service
+        android:name=".KimoxLegacyProtectionService"
+        android:exported="false"
+        android:stopWithTask="false" />
       <receiver
         android:name=".KimoxBootReceiver"
         android:enabled="true"

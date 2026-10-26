@@ -27,6 +27,7 @@ object KimoxBackgroundManager {
         val auditEnabled = preferences.getBoolean(PERIODIC_AUDIT_ENABLED, false) &&
             preferences.getBoolean(KimoxSecurityModule.MALWARE_CONSENT, false)
         KimoxSecurityAuditWorker.configure(context, auditEnabled)
+        KimoxLegacyProtectionService.update(context)
         reportProtectionHealth(context)
         KimoxDiagnostics.record(
             context,

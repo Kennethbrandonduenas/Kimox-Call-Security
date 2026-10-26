@@ -51,9 +51,11 @@ object KimoxLegacyCallHandler {
         if (reason == null) {
             preferences.putString(KimoxSecurityModule.LAST_CALL_OUTCOME, "Permitida: no coincide con una regla")
             KimoxCallHistory.record(context, rawNumber ?: "Número privado", "allowed", "Permitida: no coincide con una regla")
-            if (number != null && isKnownContact == false &&
-                preferences.getBoolean(KimoxSecurityModule.POST_CALL_PROMPT_ENABLED, true)) {
-                KimoxPostCallPrompt.rememberCandidate(context, rawNumber ?: number)
+            if (preferences.getBoolean(KimoxSecurityModule.POST_CALL_PROMPT_ENABLED, true)) {
+                when {
+                    number == null -> KimoxPostCallPrompt.rememberPrivateCandidate(context)
+                    isKnownContact == false -> KimoxPostCallPrompt.rememberCandidate(context, rawNumber ?: number)
+                }
             }
             return
         }

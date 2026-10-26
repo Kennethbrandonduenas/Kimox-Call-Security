@@ -67,9 +67,11 @@ class KimoxCallScreeningService : CallScreeningService() {
         if (reason == null) {
             preferences.putString(KimoxSecurityModule.LAST_CALL_OUTCOME, "Permitida: no coincide con una regla")
             KimoxCallHistory.record(this, rawNumber ?: "Número privado", "allowed", "Permitida: no coincide con una regla")
-            if (number != null && isKnownContact == false &&
-                preferences.getBoolean(KimoxSecurityModule.POST_CALL_PROMPT_ENABLED, true)) {
-                KimoxPostCallPrompt.rememberCandidate(this, rawNumber ?: number)
+            if (preferences.getBoolean(KimoxSecurityModule.POST_CALL_PROMPT_ENABLED, true)) {
+                when {
+                    isPrivate -> KimoxPostCallPrompt.rememberPrivateCandidate(this)
+                    number != null && isKnownContact == false -> KimoxPostCallPrompt.rememberCandidate(this, rawNumber ?: number)
+                }
             }
             respondToCall(callDetails, CallResponse.Builder().build())
             return

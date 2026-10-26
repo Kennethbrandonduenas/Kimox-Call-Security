@@ -20,6 +20,9 @@ object KimoxPostCallPrompt {
     private const val CANDIDATE_TIME = "post_call_candidate_time"
     private const val LAST_PROMPT_NUMBER = "post_call_last_prompt_number"
     private const val LAST_PROMPT_TIME = "post_call_last_prompt_time"
+    internal const val IGNORED_NUMBERS = "post_call_ignored_numbers"
+    internal const val PRIVATE_CANDIDATE = "__private__"
+    internal const val IGNORE_PRIVATE_CANDIDATE = "post_call_ignore_private"
     private const val CANDIDATE_MAX_AGE_MS = 6 * 60 * 60 * 1000L
     private const val REPEAT_DELAY_MS = 24 * 60 * 60 * 1000L
     private const val REMINDER_DELAY_MS = 45 * 1000L
@@ -27,9 +30,33 @@ object KimoxPostCallPrompt {
 
     fun rememberCandidate(context: Context, number: String) {
         val preferences = SecurePreferences(context)
-        preferences.putString(CANDIDATE_NUMBER, number)
+        val normalizedNumber = number.filter(Char::isDigit)
+        if (normalizedNumber.length < 7) {
+            KimoxDiagnostics.record(context, "INFO", "POST_CALL_CANDIDATE_SKIPPED", "invalidNumber=true")
+            return
+        }
+        if (normalizedNumber in preferences.getStringSet(IGNORED_NUMBERS) ||
+            normalizedNumber in preferences.getStringSet(KimoxSecurityModule.BLOCKED_NUMBERS) ||
+            normalizedNumber in preferences.getStringSet(KimoxSecurityModule.WHITELIST_NUMBERS)) {
+            KimoxDiagnostics.record(context, "INFO", "POST_CALL_CANDIDATE_SKIPPED", "alreadyDecided=true")
+            return
+        }
+        preferences.putString(CANDIDATE_NUMBER, normalizedNumber)
         preferences.putString(CANDIDATE_TIME, System.currentTimeMillis().toString())
         KimoxDiagnostics.record(context, "INFO", "POST_CALL_CANDIDATE_SAVED", "numberPresent=${number.isNotBlank()}")
+        scheduleFallback(context)
+    }
+
+    fun rememberPrivateCandidate(context: Context) {
+        val preferences = SecurePreferences(context)
+        if (preferences.getBoolean(KimoxSecurityModule.BLOCK_PRIVATE, true) ||
+            preferences.getBoolean(IGNORE_PRIVATE_CANDIDATE, false)) {
+            KimoxDiagnostics.record(context, "INFO", "POST_CALL_PRIVATE_SKIPPED", "alreadyDecided=true")
+            return
+        }
+        preferences.putString(CANDIDATE_NUMBER, PRIVATE_CANDIDATE)
+        preferences.putString(CANDIDATE_TIME, System.currentTimeMillis().toString())
+        KimoxDiagnostics.record(context, "INFO", "POST_CALL_PRIVATE_CANDIDATE_SAVED")
         scheduleFallback(context)
     }
 
@@ -62,13 +89,15 @@ object KimoxPostCallPrompt {
         preferences.putString(LAST_PROMPT_TIME, now.toString())
 
         val manager = context.getSystemService(NotificationManager::class.java)
+        val isPrivate = number == PRIVATE_CANDIDATE
         val notification = NotificationCompat.Builder(context, KimoxBackgroundManager.POST_CALL_CHANNEL)
             .setSmallIcon(android.R.drawable.ic_menu_call)
             .setContentTitle("¿Qué deseas hacer con este número?")
-            .setContentText(number)
+            .setContentTitle(if (isPrivate) "Bloquear llamadas privadas" else "¿Qué deseas hacer con este número?")
+            .setContentText(if (isPrivate) "La llamada no mostró un número" else number)
             .setAutoCancel(true)
-            .addAction(0, "Bloquear", action(context, ACTION_BLOCK, number, 1))
-            .addAction(0, "Permitir siempre", action(context, ACTION_ALLOW, number, 2))
+            .addAction(0, if (isPrivate) "Bloquear privados" else "Bloquear", action(context, ACTION_BLOCK, number, 1))
+            .addAction(0, if (isPrivate) "Permitir privados" else "Permitir siempre", action(context, ACTION_ALLOW, number, 2))
             .addAction(0, "Descartar", action(context, ACTION_DISMISS, number, 3))
             .build()
         manager.notify(NOTIFICATION_ID, notification)
@@ -76,7 +105,6 @@ object KimoxPostCallPrompt {
     }
 
     private fun scheduleFallback(context: Context) {
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) return
         val alarmManager = context.getSystemService(AlarmManager::class.java)
         runCatching {
             alarmManager.setAndAllowWhileIdle(
@@ -94,7 +122,6 @@ object KimoxPostCallPrompt {
     fun retryFallback(context: Context) = scheduleFallback(context)
 
     private fun cancelFallback(context: Context) {
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) return
         context.getSystemService(AlarmManager::class.java).cancel(reminderIntent(context))
     }
 
@@ -189,20 +216,36 @@ class KimoxPhoneStateReceiver : BroadcastReceiver() {
 
 class KimoxPostCallActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val number = intent.getStringExtra(KimoxPostCallPrompt.EXTRA_NUMBER)?.filter(Char::isDigit)
+        val rawCandidate = intent.getStringExtra(KimoxPostCallPrompt.EXTRA_NUMBER)
+        val isPrivateCandidate = rawCandidate == KimoxPostCallPrompt.PRIVATE_CANDIDATE
+        val number = rawCandidate?.filter(Char::isDigit)
         val preferences = SecurePreferences(context)
         when (intent.action) {
-            KimoxPostCallPrompt.ACTION_BLOCK -> if (!number.isNullOrEmpty()) {
+            KimoxPostCallPrompt.ACTION_BLOCK -> if (isPrivateCandidate) {
+                preferences.putBoolean(KimoxSecurityModule.BLOCK_PRIVATE, true)
+            } else if (!number.isNullOrEmpty()) {
                 preferences.putStringSet(
                     KimoxSecurityModule.BLOCKED_NUMBERS,
                     preferences.getStringSet(KimoxSecurityModule.BLOCKED_NUMBERS) + number,
                 )
             }
-            KimoxPostCallPrompt.ACTION_ALLOW -> if (!number.isNullOrEmpty()) {
+            KimoxPostCallPrompt.ACTION_ALLOW -> if (isPrivateCandidate) {
+                preferences.putBoolean(KimoxSecurityModule.BLOCK_PRIVATE, false)
+            } else if (!number.isNullOrEmpty()) {
                 preferences.putStringSet(
                     KimoxSecurityModule.WHITELIST_NUMBERS,
                     preferences.getStringSet(KimoxSecurityModule.WHITELIST_NUMBERS) + number,
                 )
+            }
+            KimoxPostCallPrompt.ACTION_DISMISS -> if (isPrivateCandidate) {
+                preferences.putBoolean(KimoxPostCallPrompt.IGNORE_PRIVATE_CANDIDATE, true)
+                KimoxDiagnostics.record(context, "INFO", "POST_CALL_PRIVATE_IGNORED")
+            } else if (!number.isNullOrEmpty()) {
+                preferences.putStringSet(
+                    KimoxPostCallPrompt.IGNORED_NUMBERS,
+                    preferences.getStringSet(KimoxPostCallPrompt.IGNORED_NUMBERS) + number,
+                )
+                KimoxDiagnostics.record(context, "INFO", "POST_CALL_PROMPT_IGNORED", "numberPresent=true")
             }
         }
         context.getSystemService(NotificationManager::class.java).cancel(KimoxPostCallPrompt.NOTIFICATION)

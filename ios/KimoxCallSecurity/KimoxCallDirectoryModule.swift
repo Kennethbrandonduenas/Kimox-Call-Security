@@ -45,4 +45,18 @@ final class KimoxCallDirectoryModule: NSObject {
             ])
         }
     }
+
+    @objc(entries:rejecter:)
+    func entries(resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+        do {
+            let entries = try KimoxCallDirectoryStore.load()
+            let labels = Dictionary(uniqueKeysWithValues: entries.identified.map { (String($0.number), $0.label) })
+            resolve([
+                "blocked": entries.blocked.map(String.init),
+                "labels": labels,
+            ])
+        } catch {
+            reject("KIMOX_CALL_DIRECTORY_ENTRIES", error.localizedDescription, error)
+        }
+    }
 }

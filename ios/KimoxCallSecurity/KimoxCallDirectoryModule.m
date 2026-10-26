@@ -10,4 +10,7 @@ RCT_EXTERN_METHOD(sync:(NSArray *)blocked
 RCT_EXTERN_METHOD(status:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(entries:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end

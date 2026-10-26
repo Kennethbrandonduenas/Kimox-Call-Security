@@ -20,7 +20,7 @@ export function HistoryScreen() {
     <AppTextField value={query} onChangeText={setQuery} placeholder="Buscar número o motivo" />
     <View style={s.filters}>{(['all', 'allowed', 'block', 'reject', 'silence'] as const).map(value => <AppChip key={value} selected={action === value} onPress={() => setAction(value)} label={value === 'all' ? 'Todas' : value === 'allowed' ? 'Permitidas' : value === 'block' ? 'Bloqueadas' : value === 'reject' ? 'Rechazadas' : 'Silenciadas'} />)}</View>
     {filtered.length === 0 && <AppEmptyState message="No hay llamadas que coincidan." />}
-    {filtered.map(event => <AppListItem key={event.id} title={event.number} subtitle={`${event.reason} · ${translateAction(event.action)}`} detail={new Date(event.timestamp).toLocaleString()} leading={<Text>×</Text>}/>)}
+    {filtered.map(event => <AppListItem key={event.id} title={event.contactName || event.number} subtitle={`${event.contactName ? event.number + ' · ' : ''}${event.reason} · ${translateAction(event.action)}`} detail={new Date(event.timestamp).toLocaleString()} leading={<Text>×</Text>}/>)}
     {events.length > 0 && <AppButton title="Borrar historial" variant="danger" onPress={removeAll} />}
   </AppScreen>;
 }

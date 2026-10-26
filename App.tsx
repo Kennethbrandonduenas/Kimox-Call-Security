@@ -1,6 +1,7 @@
 /* eslint-disable react-native/no-inline-styles */
 import React, {useEffect, useState} from 'react';
 import {
+  Platform,
   StatusBar,
   Text,
   TouchableOpacity,
@@ -24,10 +25,11 @@ import {SecurityRulesScreen} from './src/features/blocking/presentation/screens/
 import {HistoryScreen} from './src/features/history/presentation/HistoryScreen';
 import {MalwareScannerScreen} from './src/features/malware/presentation/MalwareScannerScreen';
 import {SettingsScreen} from './src/features/diagnostics/presentation/SettingsScreen';
+import {ReportCallScreen} from './src/features/blocking/presentation/screens/ReportCallScreen';
 import {styles} from './src/features/blocking/presentation/styles';
 import {AppErrorBoundary} from './src/shared/presentation/AppErrorBoundary';
 
-type Tab = 'home' | 'blocked' | 'history' | 'malware' | 'rules' | 'settings';
+type Tab = 'home' | 'blocked' | 'history' | 'malware' | 'rules' | 'settings' | 'report';
 
 export default function App() {
   return (
@@ -66,6 +68,8 @@ function AppContent() {
       ? <BlockedNumbersScreen blocked={blocked} setBlocked={setBlocked} />
       : tab === 'history'
         ? <HistoryScreen />
+        : tab === 'report'
+          ? <ReportCallScreen blocked={blocked} setBlocked={setBlocked} />
         : tab === 'malware'
           ? <MalwareScannerScreen />
           : tab === 'settings'
@@ -99,6 +103,7 @@ function AppContent() {
         <Nav label="Reglas" icon="⚙" active={tab === 'rules'} onPress={() => setTab('rules')} />
         <Nav label="Antimalware" icon="◆" active={tab === 'malware'} onPress={() => setTab('malware')} />
         <Nav label="Ajustes" icon="⋮" active={tab === 'settings'} onPress={() => setTab('settings')} />
+        {Platform.OS === 'ios' && <Nav label="Reportar" icon="+" active={tab === 'report'} onPress={() => setTab('report')} />}
       </View>
     </SafeAreaView>
   );

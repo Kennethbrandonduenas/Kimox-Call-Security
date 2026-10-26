@@ -16,6 +16,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.PowerManager
+import android.provider.ContactsContract
 import android.provider.Settings
 import android.util.Base64
 import android.view.accessibility.AccessibilityManager
@@ -72,12 +73,96 @@ class KimoxSecurityModule(
 
     @ReactMethod
     fun setBlockedNumbers(numbers: ReadableArray) {
-        preferences.putStringSet(BLOCKED_NUMBERS, numbers.toStringSet())
+        val blocked = numbers.toStringSet().map { it.filter(Char::isDigit) }.filter { it.length >= 7 }.toSet()
+        preferences.putStringSet(BLOCKED_NUMBERS, blocked)
+        preferences.putStringSet(WHITELIST_NUMBERS, preferences.getStringSet(WHITELIST_NUMBERS) - blocked)
+        preferences.putStringSet(BLOCKED_CONTACT_LABELS, preferences.getStringSet(BLOCKED_CONTACT_LABELS)
+            .filter { it.substringBefore('|') in blocked }.toSet())
+        KimoxDiagnostics.record(context, "INFO", "BLOCKED_LIST_SYNCED", "count=${blocked.size}")
     }
 
     @ReactMethod
     fun getBlockedNumbers(promise: Promise) {
         promise.resolve(preferences.getStringSet(BLOCKED_NUMBERS).toWritableArray())
+    }
+
+    @ReactMethod
+    fun getBlockedNumberLabels(promise: Promise) {
+        val labels = Arguments.createMap()
+        preferences.getStringSet(BLOCKED_CONTACT_LABELS).forEach { item ->
+            val number = item.substringBefore('|')
+            val label = item.substringAfter('|', "")
+            if (number.isNotEmpty() && label.isNotEmpty()) labels.putString(number, label)
+        }
+        promise.resolve(labels)
+    }
+
+    @ReactMethod
+    fun blockContact(number: String, label: String) {
+        val normalized = number.filter(Char::isDigit)
+        if (normalized.length < 7) return
+        preferences.putStringSet(BLOCKED_NUMBERS, preferences.getStringSet(BLOCKED_NUMBERS) + normalized)
+        preferences.putStringSet(WHITELIST_NUMBERS, preferences.getStringSet(WHITELIST_NUMBERS) - normalized)
+        val labels = preferences.getStringSet(BLOCKED_CONTACT_LABELS)
+            .filterNot { it.substringBefore('|') == normalized }
+            .toMutableSet()
+        labels += "$normalized|${label.replace('|', ' ').trim()}"
+        preferences.putStringSet(BLOCKED_CONTACT_LABELS, labels)
+        KimoxDiagnostics.record(context, "INFO", "CONTACT_BLOCKED", "numberPresent=true")
+    }
+
+    @ReactMethod
+    fun unblockNumber(number: String) {
+        val normalized = number.filter(Char::isDigit)
+        if (normalized.isEmpty()) return
+        preferences.putStringSet(BLOCKED_NUMBERS, preferences.getStringSet(BLOCKED_NUMBERS) - normalized)
+        preferences.putStringSet(WHITELIST_NUMBERS, preferences.getStringSet(WHITELIST_NUMBERS) + normalized)
+        preferences.putStringSet(BLOCKED_CONTACT_LABELS, preferences.getStringSet(BLOCKED_CONTACT_LABELS)
+            .filterNot { it.substringBefore('|') == normalized }.toSet())
+        KimoxDiagnostics.record(context, "INFO", "NUMBER_UNBLOCKED_AND_ALLOWED", "numberPresent=true")
+    }
+
+    @ReactMethod
+    fun getContacts(promise: Promise) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            promise.resolve(Arguments.createArray())
+            return
+        }
+        val contacts = linkedMapOf<String, String>()
+        context.contentResolver.query(
+            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+            arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER),
+            null, null, "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} COLLATE NOCASE ASC",
+        )?.use { cursor ->
+            val nameIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+            val numberIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
+            while (cursor.moveToNext()) {
+                val number = cursor.getString(numberIndex).orEmpty().filter(Char::isDigit)
+                val name = cursor.getString(nameIndex).orEmpty().trim()
+                if (number.length >= 7 && name.isNotEmpty()) contacts.putIfAbsent(number, name)
+            }
+        }
+        promise.resolve(Arguments.createArray().apply {
+            contacts.forEach { (number, name) -> pushMap(Arguments.createMap().apply { putString("number", number); putString("name", name) }) }
+        })
+    }
+
+    @ReactMethod
+    fun getContactNames(numbers: ReadableArray, promise: Promise) {
+        val names = Arguments.createMap()
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            promise.resolve(names)
+            return
+        }
+        numbers.toStringSet().forEach { raw ->
+            val number = raw.filter(Char::isDigit)
+            if (number.length < 7) return@forEach
+            val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
+            context.contentResolver.query(uri, arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) names.putString(number, cursor.getString(0))
+            }
+        }
+        promise.resolve(names)
     }
 
     @ReactMethod
@@ -270,6 +355,17 @@ class KimoxSecurityModule(
 
     @ReactMethod
     fun openAppSettings() = openSettings(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
+
+    @ReactMethod
+    fun openNotificationSettings() {
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        } else {
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
+        }
+        openSettings(intent)
+    }
 
     @ReactMethod
     fun openAccessibilitySettings() = openSettings(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
@@ -754,6 +850,7 @@ class KimoxSecurityModule(
         const val HISTORY_RETENTION_DAYS = "history_retention_days"
         const val PROTECTION_ENABLED = "protection_enabled"
         const val CALL_HISTORY = "call_history"
+        const val BLOCKED_CONTACT_LABELS = "blocked_contact_labels"
         const val LAST_SCANNED_PACKAGES = "last_scanned_packages"
         const val LAST_MALWARE_SCAN = "last_malware_scan"
         const val TRUSTED_APPS = "trusted_apps"

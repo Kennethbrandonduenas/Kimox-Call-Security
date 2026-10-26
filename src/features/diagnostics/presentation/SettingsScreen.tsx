@@ -3,7 +3,7 @@ import {Alert, StyleSheet} from 'react-native';
 import {AppButton, AppNotice, AppPageHeader, AppScreen, AppSectionHeader, AppStatusRow, AppTextField} from '../../../shared/presentation/components';
 import {
   clearAllData, clearHistory, DiagnosticStatus, getDiagnostics, openAccessibilitySettings,
-  openAppSettings, openBatterySettings, openManufacturerBatterySettings, openOverlaySettings,
+  openAppSettings, openBatterySettings, openManufacturerBatterySettings, openNotificationSettings, openOverlaySettings,
   requestCallScreeningRole,
 } from '../../blocking/application/blockingService';
 import {exportRules, importRules} from '../../rules-manager/application/RulesBackupService';
@@ -27,7 +27,7 @@ export function SettingsScreen() {
     <AppStatusRow title="Última evaluación de llamada" status={lastActivity(diagnostics.lastCallFilterAt)} tone={diagnostics.lastCallFilterAt ? 'success' : 'warning'} />
     <AppStatusRow title="Resultado de la última evaluación" status={diagnostics.lastCallOutcome} tone={diagnostics.lastCallFilterAt ? 'success' : 'warning'} />
     <Diagnostic title="Acceso a contactos" enabled={diagnostics.contacts} onPress={requestCallScreeningRole}/>
-    <Diagnostic title="Notificaciones" enabled={diagnostics.notifications} onPress={requestCallScreeningRole}/>
+    <Diagnostic title="Notificaciones" enabled={diagnostics.notifications} onPress={openNotificationSettings}/>
     <AppStatusRow title="Protección en segundo plano" status={diagnostics.backgroundReady ? 'Preparada' : 'Pausada'} tone={diagnostics.backgroundReady ? 'success' : 'danger'} />
     <Diagnostic title="Sin restricción de batería" enabled={diagnostics.batteryUnrestricted} onPress={openBatterySettings}/>
     <Diagnostic title="Superposición autorizada" enabled={diagnostics.overlay} onPress={openOverlaySettings}/>
